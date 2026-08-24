@@ -1,0 +1,155 @@
+#!/usr/bin/env ruby
+# snapshot.rb — Stage, commit, and push the working tree in one step.
+#
+# Runs `git add -A`, creates a commit (from --message or an auto-generated
+# summary of staged changes), and pushes to the current branch's remote.
+#
+# Usage:
+#   snapshot.rb                           # auto-message + push
+#   snapshot.rb "fix: update config writers"
+#   snapshot.rb --message "feat: add X"
+#   snapshot.rb --no-push                 # commit only, do not push
+#   snapshot.rb --dry-run                 # show what would be done
+#   snapshot.rb --verbose
+#
+# Flags:
+#   -m, --message MSG   Commit message (positional arg also accepted)
+#   --no-push           Commit but skip the push
+#   --dry-run           Print intent without running git mutating commands
+#   --verbose           Print each git command as it runs
+#
+# Exit 0 on success; 1 if there is nothing to commit, push fails, or the tree
+# is not inside a git repository.
+
+require 'optparse'
+require 'open3'
+
+$verbose = false
+
+def run_git(*args)
+  cmd = ['git', *args]
+  puts "  $ #{cmd.join(' ')}" if $verbose
+  out, err, st = Open3.capture3(*cmd)
+  [out.strip, err.strip, st.exitstatus]
+end
+
+def inside_git_repo?
+  out, _err, st = run_git('rev-parse', '--is-inside-work-tree')
+  st == 0 && out == 'true'
+end
+
+def dirty?
+  out, _err, st = run_git('status', '--porcelain')
+  st == 0 && !out.empty?
+end
+
+def current_branch
+  out, _err, st = run_git('rev-parse', '--abbrev-ref', 'HEAD')
+  return nil unless st == 0
+
+  out.empty? ? nil : out
+end
+
+def generate_message
+  out, _err, st = run_git('diff', '--cached', '--name-only')
+  return 'chore: snapshot' unless st == 0 || out.empty?
+
+  paths = out.lines.map(&:strip).reject(&:empty?)
+  return 'chore: snapshot' if paths.empty?
+
+  counts = Hash.new(0)
+  paths.each do |p|
+    top = p.split('/').first
+    counts[top] += 1
+  end
+  summary = counts.sort_by { |_k, v| -v }.map { |k, v| v > 1 ? "#{k} (#{v})" : k }.join(', ')
+  prefix = paths.include?('main.go') ? 'feat' : 'chore'
+  "#{prefix}: snapshot #{summary}"
+end
+
+def main(argv)
+  opts = { message: nil, push: true, dry_run: false }
+  parser = OptionParser.new do |o|
+    o.on('-m', '--message MSG', 'Commit message') { |v| opts[:message] = v }
+    o.on('--no-push', 'Commit but do not push') { opts[:push] = false }
+    o.on('--dry-run', 'Show intent without writing/pushing') { opts[:dry_run] = true }
+    o.on('--verbose', 'Print each git command') { $verbose = true }
+    o.on('-h', '--help', 'Show help') do
+      puts o.banner
+      exit 0
+    end
+  end
+  parser.parse!(argv)
+  opts[:message] ||= argv.first
+
+  unless inside_git_repo?
+    warn 'snapshot: not inside a git work tree'
+    return 1
+  end
+
+  unless dirty?
+    puts 'snapshot: nothing to commit'
+    return 1
+  end
+
+  if opts[:dry_run]
+    puts 'snapshot: dry run (would stage, commit, push)'
+    puts '  git add -A'
+  else
+    _out, err, st = run_git('add', '-A')
+    unless st == 0
+      warn "snapshot: git add failed: #{err}"
+      return 1
+    end
+  end
+
+  message = opts[:message] || generate_message
+  if message.empty?
+    warn 'snapshot: empty commit message'
+    return 1
+  end
+
+  if opts[:dry_run]
+    puts "  git commit -m #{message.inspect}"
+  else
+    _out, err, st = run_git('commit', '-m', message)
+    unless st == 0
+      warn "snapshot: commit failed: #{err}"
+      return 1
+    end
+    puts "snapshot: committed (#{message})"
+  end
+
+  return 0 unless opts[:push]
+
+  branch = current_branch
+  if branch.nil? || branch == 'HEAD'
+    warn 'snapshot: cannot determine current branch; skipping push'
+    return 1
+  end
+
+  unless staged_upstream?(branch)
+    warn 'snapshot: no upstream for branch; skipping push (use --no-push to commit only)'
+    return 1
+  end
+
+  if opts[:dry_run]
+    puts '  git push'
+    return 0
+  end
+
+  _out, err, st = run_git('push')
+  unless st == 0
+    warn "snapshot: push failed: #{err}"
+    return 1
+  end
+  puts 'snapshot: pushed'
+  0
+end
+
+def staged_upstream?(branch)
+  out, _err, st = run_git('rev-parse', '--abbrev-ref', "#{branch}@{upstream}")
+  st == 0 && !out.empty?
+end
+
+exit(main(ARGV.dup))
