@@ -12,7 +12,8 @@ import (
 	"github.com/sarielhp/mcpx/internal/types"
 )
 
-// TemplateRepoBase is the base URL for the official template catalog on GitHub.
+// TemplateRepoBase is the default base URL for the official template catalog on
+// GitHub. Users can override it in ~/.config/mcpx/config.json (templateRepo).
 const TemplateRepoBase = "https://raw.githubusercontent.com/sarielhp/mcp-templates/main"
 
 // TemplateIndex is the shape of INDEX.json served by the template repo.
@@ -46,9 +47,9 @@ func cacheDir() string {
 	return path.Join(home, ".config", "mcpx", "templates")
 }
 
-// fetchRemote downloads a path from the remote template repo.
+// fetchRemote downloads a path from the configured remote template repo.
 func fetchRemote(rel string) ([]byte, error) {
-	url := TemplateRepoBase + "/" + rel
+	url := templateRepoBase() + "/" + rel
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
