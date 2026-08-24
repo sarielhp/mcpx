@@ -3,6 +3,7 @@ package types
 // Server represents a MCP server definition
 type Server struct {
 	Name          string            `json:"name"`
+	URL           string            `json:"url,omitempty"`
 	Description   string            `json:"description"`
 	Command       string            `json:"command"`
 	Args          []string          `json:"args,omitempty"`

@@ -1,5 +1,6 @@
 {
   "name": "postgres",
+  "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
   "description": "PostgreSQL database operations",
   "command": "npx",
   "args": [

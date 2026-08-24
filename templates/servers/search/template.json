@@ -1,5 +1,6 @@
 {
   "name": "search",
+  "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/search",
   "description": "Web search across multiple engines",
   "command": "npx",
   "args": [

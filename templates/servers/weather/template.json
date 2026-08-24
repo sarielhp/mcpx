@@ -1,5 +1,6 @@
 {
   "name": "weather",
+  "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/weather",
   "description": "Weather forecasts and current conditions",
   "command": "npx",
   "args": [

@@ -1,5 +1,6 @@
 {
   "name": "spotify",
+  "url": "https://github.com/punkpeye/mcp-spotify",
   "description": "Spotify playback and library control",
   "command": "npx",
   "args": [

@@ -1,5 +1,6 @@
 {
   "name": "image-gen",
+  "url": "https://github.com/punkpeye/mcp-image-gen",
   "description": "AI image generation",
   "command": "npx",
   "args": [

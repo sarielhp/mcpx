@@ -1,5 +1,6 @@
 {
   "name": "fetch",
+  "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
   "description": "Fetch and convert web content to markdown",
   "command": "uvx",
   "args": [

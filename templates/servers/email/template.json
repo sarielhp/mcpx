@@ -1,5 +1,6 @@
 {
   "name": "email",
+  "url": "https://github.com/punkpeye/mcp-email",
   "description": "Email sending and inbox management",
   "command": "npx",
   "args": [

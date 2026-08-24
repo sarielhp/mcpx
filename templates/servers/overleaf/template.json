@@ -1,5 +1,6 @@
 {
   "name": "overleaf",
+  "url": "https://github.com/your-package/overleaf-mcp",
   "description": "Overleaf LaTeX collaboration",
   "command": "uvx",
   "args": [

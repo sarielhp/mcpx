@@ -1,5 +1,6 @@
 {
   "name": "semantic-scholar",
+  "url": "https://github.com/your-package/s2-mcp-server",
   "description": "Semantic Scholar academic paper & author search",
   "command": "uvx",
   "args": [

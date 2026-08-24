@@ -1,5 +1,6 @@
 {
   "name": "figma",
+  "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/figma",
   "description": "Figma design file access",
   "command": "npx",
   "args": [

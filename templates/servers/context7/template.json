@@ -1,5 +1,6 @@
 {
   "name": "context7",
+  "url": "https://github.com/upstash/context7",
   "description": "Up-to-date library documentation lookup",
   "command": "npx",
   "args": [

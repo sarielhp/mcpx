@@ -169,7 +169,24 @@ tools/snapshot --dry-run --verbose       # preview intent
 ```
 
 Flags: `-m/--message MSG` (positional arg also accepted), `--no-push`,
-`--dry-run`, `--verbose`.
+`--dry-run`, `--check`, `--verbose`.
+
+### Security
+
+**`tools/scan_secrets`** — Security & privacy violation scanner. Checks for
+leaked API keys, passwords, private keys, tokens, credit-card numbers, tracked
+or present `.env` files, and literal (non-`${VAR}`) values in `template.json`
+env fields, plus preset→server reference validation.
+
+```bash
+tools/scan_secrets                # scan whole tree (exit 1 on violations)
+tools/scan_secrets --path dir      # scan a directory
+tools/scan_secrets --json          # CI-friendly JSON output
+```
+
+Installed as a pre-commit hook (`.githooks`), also invoked by
+`tools/snapshot --check`. Run it after any change to templates or config
+writers, before pushing.
 
 ## Conventions
 
@@ -179,3 +196,6 @@ Flags: `-m/--message MSG` (positional arg also accepted), `--no-push`,
   (`github.com/sarielhp/mcpx`).
 - When adding a server template, also consider adding a `recommends` entry and
   a smoke/golden case.
+- Templates live in the **`mcp-templates` GitHub repo**
+  (`github.com/sarielhp/mcp-templates`) and are mirrored in `templates/`.
+  Run `mcpx template update` to refresh the local cache from that repo.

@@ -1,5 +1,6 @@
 {
   "name": "redis",
+  "url": "https://github.com/punkpeye/mcp-redis",
   "description": "Redis cache and data store operations",
   "command": "npx",
   "args": [

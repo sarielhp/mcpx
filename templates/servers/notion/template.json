@@ -1,5 +1,6 @@
 {
   "name": "notion",
+  "url": "https://github.com/modelcontextprotocol/server-notion",
   "description": "Notion workspace and database access",
   "command": "npx",
   "args": [

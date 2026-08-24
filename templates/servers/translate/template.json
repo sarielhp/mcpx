@@ -1,5 +1,6 @@
 {
   "name": "translate",
+  "url": "https://github.com/punkpeye/mcp-translate",
   "description": "Language translation",
   "command": "npx",
   "args": [

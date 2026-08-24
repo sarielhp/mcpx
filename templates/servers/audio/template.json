@@ -1,5 +1,6 @@
 {
   "name": "audio",
+  "url": "https://github.com/punkpeye/mcp-audio",
   "description": "Audio transcription and processing",
   "command": "npx",
   "args": [

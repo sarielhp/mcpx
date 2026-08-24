@@ -1,5 +1,6 @@
 {
   "name": "news",
+  "url": "https://github.com/punkpeye/mcp-news",
   "description": "News headlines and article search",
   "command": "npx",
   "args": [

@@ -1,5 +1,6 @@
 {
   "name": "gopls",
+  "url": "https://github.com/golang/tools/tree/master/gopls",
   "description": "Go language server for code intelligence",
   "command": "gopls",
   "args": [

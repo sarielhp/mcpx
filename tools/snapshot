@@ -10,12 +10,14 @@
 #   snapshot --message "feat: add X"
 #   snapshot --no-push                 # commit only, do not push
 #   snapshot --dry-run                 # show what would be done
+#   snapshot --check                   # run scan_secrets before committing
 #   snapshot --verbose
 #
 # Flags:
 #   -m, --message MSG   Commit message (positional arg also accepted)
 #   --no-push           Commit but skip the push
 #   --dry-run           Print intent without running git mutating commands
+#   --check             Run tools/scan_secrets before committing; abort on violations
 #   --verbose           Print each git command as it runs
 #
 # Exit 0 on success (including when there is nothing to commit); 1 when the
@@ -74,11 +76,12 @@ def generate_message(staged: true)
 end
 
 def main(argv)
-  opts = { message: nil, push: true, dry_run: false }
+  opts = { message: nil, push: true, dry_run: false, check: false }
   parser = OptionParser.new do |o|
     o.on('-m', '--message MSG', 'Commit message') { |v| opts[:message] = v }
     o.on('--no-push', 'Commit but do not push') { opts[:push] = false }
     o.on('--dry-run', 'Show intent without writing/pushing') { opts[:dry_run] = true }
+    o.on('--check', 'Run scan_secrets before committing') { opts[:check] = true }
     o.on('--verbose', 'Print each git command') { $verbose = true }
     o.on('-h', '--help', 'Show help') do
       puts o.banner
@@ -96,6 +99,22 @@ def main(argv)
   unless dirty?
     puts 'snapshot: nothing to commit'
     return 0
+  end
+
+  if opts[:check]
+    scanner = File.join(Dir.pwd, 'tools', 'scan_secrets')
+    if File.exist?(scanner)
+      puts 'snapshot: running scan_secrets...' if $verbose
+      out, err, st = Open3.capture3(scanner, '--path', Dir.pwd)
+      unless st.exitstatus.zero?
+        warn 'snapshot: scan_secrets found violations — aborting:'
+        puts err
+        puts out
+        return 1
+      end
+    else
+      warn 'snapshot: tools/scan_secrets not found; skipping --check'
+    end
   end
 
   if opts[:dry_run]

@@ -58,18 +58,26 @@ func GetPreset(name string) (*types.Preset, error) {
 
 // ResolveItems expands a list of item names into concrete servers.
 // Preset names are expanded into their member servers; unknown names are
-// returned as-is so the caller can report them.
+// returned as-is so the caller can report them. Resolves via the remote
+// registry first, falling back to the embedded set.
 func ResolveItems(items []string) ([]*types.Server, []string) {
+	reg := &RemoteRegistry{}
+	return reg.ResolveItems(items)
+}
+
+// ResolveItems expands item names (servers or presets) into concrete servers
+// using this registry (remote-first, embedded fallback).
+func (r *RemoteRegistry) ResolveItems(items []string) ([]*types.Server, []string) {
 	var servers []*types.Server
 	var unknown []string
 	for _, item := range items {
-		if server, err := GetServer(item); err == nil {
+		if server, err := r.GetServer(item); err == nil {
 			servers = append(servers, server)
 			continue
 		}
-		if preset, err := GetPreset(item); err == nil {
+		if preset, err := r.GetPreset(item); err == nil {
 			for _, member := range preset.Servers {
-				if server, err := GetServer(member); err == nil {
+				if server, err := r.GetServer(member); err == nil {
 					servers = append(servers, server)
 				} else {
 					unknown = append(unknown, member)

@@ -1,5 +1,6 @@
 {
   "name": "slack",
+  "url": "https://github.com/modelcontextprotocol/server-slack",
   "description": "Slack workspace messaging",
   "command": "npx",
   "args": [

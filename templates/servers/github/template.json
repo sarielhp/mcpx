@@ -1,5 +1,6 @@
 {
   "name": "github",
+  "url": "https://github.com/modelcontextprotocol/server-github",
   "description": "GitHub API integration for issues, PRs, and repos",
   "command": "npx",
   "args": [

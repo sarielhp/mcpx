@@ -1,5 +1,6 @@
 {
   "name": "docker",
+  "url": "https://github.com/punkpeye/mcp-docker-server",
   "description": "Docker container and image management",
   "command": "npx",
   "args": [

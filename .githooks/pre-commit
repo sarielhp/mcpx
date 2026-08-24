@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-commit hook — run the security scanner before every commit.
+#
+# Blocks commits that leak secrets, .env files, or literal template values.
+# Install with: git config core.hooksPath .githooks
+
+set -u
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SCANNER="$REPO_ROOT/tools/scan_secrets"
+TMP_OUT="$(mktemp)"
+
+if [ ! -f "$SCANNER" ]; then
+  echo "pre-commit: scan_secrets not found at $SCANNER; skipping security check"
+  exit 0
+fi
+
+# Only run when something is actually staged for commit.
+STAGED="$(git diff --cached --name-only)"
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+if "$SCANNER" --path "$REPO_ROOT" --json >"$TMP_OUT" 2>&1; then
+  rm -f "$TMP_OUT"
+  exit 0
+fi
+
+echo "pre-commit: SECURITY VIOLATIONS detected — commit blocked."
+if command -v jq >/dev/null 2>&1; then
+  jq -r '.hits[] | "  \(.file):\(.line // 1) — \(.issue)"' "$TMP_OUT" 2>/dev/null
+else
+  cat "$TMP_OUT"
+fi
+rm -f "$TMP_OUT"
+exit 1

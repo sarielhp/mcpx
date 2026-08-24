@@ -1,5 +1,6 @@
 {
   "name": "linear",
+  "url": "https://github.com/modelcontextprotocol/server-linear",
   "description": "Linear issue tracking",
   "command": "npx",
   "args": [

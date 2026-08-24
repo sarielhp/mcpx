@@ -1,3 +1,9 @@
+# Environment files — MUST NEVER be committed
+.env
+.env.*
+*.env
+!.env.example
+
 # Build artifacts
 /bin/
 /mcpx
@@ -8,11 +14,6 @@
 
 # Tooling
 .agents/
-
-# Environment files
-.env
-.env.local
-.env.*.local
 
 # IDE
 .vscode/

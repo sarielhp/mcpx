@@ -1,5 +1,6 @@
 {
   "name": "calendar",
+  "url": "https://github.com/punkpeye/mcp-calendar",
   "description": "Calendar and scheduling",
   "command": "npx",
   "args": [

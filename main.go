@@ -199,6 +199,13 @@ func buildApp() *clihelp.App {
 						Args:        clihelp.ExactArgs(1),
 						Run:         func(ctx *clihelp.Context) error { return cmdShow(ctx.Args[0]) },
 					},
+					{
+						Name:        "update",
+						Description: "Refresh local template cache from the remote repo",
+						UsageLine:   "mcpx template update",
+						Args:        clihelp.NoArgs,
+						Run:         func(ctx *clihelp.Context) error { return cmdTemplateUpdate() },
+					},
 				},
 			},
 		},
@@ -256,7 +263,7 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 	for _, s := range servers {
 		for _, rec := range s.Recommends {
 			if withRecommended {
-				if _, err := GetServer(rec); err == nil {
+				if _, err := registry.GetServer(rec); err == nil {
 					fmt.Printf("  Added recommended companion: %s\n", rec)
 				}
 			} else {
@@ -321,15 +328,18 @@ func cmdList(dir string) error {
 }
 
 func cmdShow(name string) error {
-	if server, err := GetServer(name); err == nil {
+	if server, err := registry.GetServer(name); err == nil {
 		fmt.Printf("%s — %s\n", server.Name, server.Description)
+		if server.URL != "" {
+			fmt.Printf("  url: %s\n", server.URL)
+		}
 		fmt.Printf("  command: %s %s\n", server.Command, strings.Join(server.Args, " "))
 		for _, prereq := range server.Prerequisites {
 			fmt.Printf("  requires: %s\n", prereq.Binary)
 		}
 		return nil
 	}
-	if preset, err := GetPreset(name); err == nil {
+	if preset, err := registry.GetPreset(name); err == nil {
 		fmt.Printf("Preset %s — %s\n", preset.Name, preset.Description)
 		fmt.Printf("  servers: %s\n", strings.Join(preset.Servers, ", "))
 		return nil
@@ -429,13 +439,22 @@ func cmdAuthRm(name string) error {
 
 func cmdTemplateList() error {
 	fmt.Println("Servers:")
-	for _, name := range ListServers() {
+	for _, name := range registry.ListServers() {
 		fmt.Printf("  %s\n", name)
 	}
 	fmt.Println("Presets:")
-	for _, name := range ListPresets() {
+	for _, name := range registry.ListPresets() {
 		fmt.Printf("  %s\n", name)
 	}
+	return nil
+}
+
+func cmdTemplateUpdate() error {
+	n, err := registry.Update()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Updated %d template(s) in %s\n", n, cacheDir())
 	return nil
 }
 
@@ -446,8 +465,8 @@ func binaryExists(binary string) bool {
 
 func allServers() []*types.Server {
 	var servers []*types.Server
-	for _, name := range ListServers() {
-		if s, err := GetServer(name); err == nil {
+	for _, name := range registry.ListServers() {
+		if s, err := registry.GetServer(name); err == nil {
 			servers = append(servers, s)
 		}
 	}
