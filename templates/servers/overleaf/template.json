@@ -21,7 +21,8 @@
     }
   ],
   "recommends": [
-
+    "git",
+    "semantic-scholar"
   ],
   "alternatives": [
 

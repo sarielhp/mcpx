@@ -12,6 +12,7 @@ import (
 type StandardWriter struct {
 	Dir       string
 	Overwrite bool
+	Subpath   string // Optional subdirectory path (e.g., ".cursor", ".claude", ".vscode")
 }
 
 // NewStandardWriter creates a writer targeting the given directory.
@@ -19,9 +20,19 @@ func NewStandardWriter(dir string, overwrite bool) *StandardWriter {
 	return &StandardWriter{Dir: dir, Overwrite: overwrite}
 }
 
+// NewStandardWriterWithSubpath creates a writer targeting a subdirectory.
+func NewStandardWriterWithSubpath(dir string, overwrite bool, subpath string) *StandardWriter {
+	return &StandardWriter{Dir: dir, Overwrite: overwrite, Subpath: subpath}
+}
+
 // Write adds the given servers to the standard config file.
 func (w *StandardWriter) Write(servers []*types.Server, vault *envvault.Vault) error {
-	file := path.Join(w.Dir, "mcp.json")
+	var file string
+	if w.Subpath != "" {
+		file = path.Join(w.Dir, w.Subpath, "mcp.json")
+	} else {
+		file = path.Join(w.Dir, "mcp.json")
+	}
 	root := LoadConfig(file)
 	mcp, ok := root["mcpServers"]
 	if !ok || !IsObject(mcp) {

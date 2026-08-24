@@ -22,7 +22,8 @@
     }
   ],
   "recommends": [
-
+    "fetch",
+    "image-gen"
   ],
   "alternatives": [
 

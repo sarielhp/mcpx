@@ -17,7 +17,8 @@
     }
   ],
   "recommends": [
-
+    "search",
+    "fetch"
   ],
   "alternatives": [
 

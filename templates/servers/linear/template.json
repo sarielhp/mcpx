@@ -22,7 +22,8 @@
     }
   ],
   "recommends": [
-
+    "github",
+    "slack"
   ],
   "alternatives": [
 

@@ -17,7 +17,8 @@
     }
   ],
   "recommends": [
-    "github"
+    "github",
+    "docker"
   ],
   "alternatives": [
 

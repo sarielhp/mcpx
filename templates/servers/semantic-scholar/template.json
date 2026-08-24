@@ -21,7 +21,8 @@
     }
   ],
   "recommends": [
-
+    "overleaf",
+    "search"
   ],
   "alternatives": [
 

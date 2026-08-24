@@ -12,6 +12,7 @@ import (
 type OpenCodeWriter struct {
 	Dir       string
 	Overwrite bool
+	Subpath   string // Optional subdirectory path (e.g., ".opencode")
 }
 
 // NewOpenCodeWriter creates a writer targeting the given directory.
@@ -19,9 +20,19 @@ func NewOpenCodeWriter(dir string, overwrite bool) *OpenCodeWriter {
 	return &OpenCodeWriter{Dir: dir, Overwrite: overwrite}
 }
 
+// NewOpenCodeWriterWithSubpath creates a writer targeting a subdirectory.
+func NewOpenCodeWriterWithSubpath(dir string, overwrite bool, subpath string) *OpenCodeWriter {
+	return &OpenCodeWriter{Dir: dir, Overwrite: overwrite, Subpath: subpath}
+}
+
 // Write adds the given servers to the OpenCode config file.
 func (w *OpenCodeWriter) Write(servers []*types.Server, vault *envvault.Vault) error {
-	file := path.Join(w.Dir, "opencode.json")
+	var file string
+	if w.Subpath != "" {
+		file = path.Join(w.Dir, w.Subpath, "opencode.json")
+	} else {
+		file = path.Join(w.Dir, "opencode.json")
+	}
 	root := LoadConfig(file)
 	mcp, ok := root["mcp"]
 	if !ok || !IsObject(mcp) {
