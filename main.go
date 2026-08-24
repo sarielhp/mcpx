@@ -87,7 +87,7 @@ func buildApp() *clihelp.App {
 	app := &clihelp.App{
 		Name:        "mcpx",
 		Description: "MCPX - Manage MCP servers and presets",
-		Version:     "0.1.1",
+		Version:     "0.2.0",
 		GlobalNote:  "Run 'mcpx <command> --help' for command-specific options.",
 		Commands: []clihelp.Command{
 			{
