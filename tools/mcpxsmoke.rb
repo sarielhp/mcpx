@@ -1,0 +1,259 @@
+#!/usr/bin/env ruby
+# mcpxsmoke.rb — Regression smoke test for the mcpx CLI.
+#
+# Builds mcpx and runs a table of isolated scenarios against scratch
+# workspaces, checking exit codes and expected substrings in stdout/stderr and
+# in output JSON files. Prevents silent regressions across the add/rm/list/
+# show/test/auth/template commands and the shorthand rewrites.
+#
+# Usage:
+#   mcpxsmoke.rb                        # build + run full smoke suite
+#   mcpxsmoke.rb --bin /path/to/mcpx    # use a prebuilt binary (skips build)
+#   mcpxsmoke.rb --select template,list # run only matching tests
+#   mcpxsmoke.rb --verbose
+#   mcpxsmoke.rb --fail-quick           # stop at first failure
+#
+# Exit 0 when all pass; 1 when any assertion fails; 2 on usage/build error.
+
+require 'optparse'
+require 'json'
+require 'fileutils'
+require 'tmpdir'
+require 'open3'
+
+# Each test runs in its own scratch dir. `steps` run sequentially there.
+# Expect kinds (checked for every step that declares them):
+#   :stdout / :stderr with :include[] and :not_include[]
+#   :json (path: opencode.json) with :contains{} (key must exist) and
+#         :not_contains{} (key must NOT exist)
+TESTS = [
+  {
+    name: 'template-list-shows-servers-and-presets',
+    steps: [{ args: %w[template list],
+              expect: [{ file: :stdout, include: ['Servers:', 'Presets:', 'gopls', 'golang-dev'] }] }]
+  },
+  {
+    name: 'ls-shorthand-aliases-template-list',
+    steps: [{ args: ['ls'],
+              expect: [{ file: :stdout, include: ['Servers:'] }] }]
+  },
+  {
+    name: 'show-server',
+    steps: [{ args: %w[show gopls],
+              expect: [{ file: :stdout, include: ['gopls', 'language server'] }] }]
+  },
+  {
+    name: 'show-preset',
+    steps: [{ args: %w[show golang-dev],
+              expect: [{ file: :stdout, include: ['Preset', 'gopls, context7'] }] }]
+  },
+  {
+    name: 'show-unknown-fails',
+    steps: [{ args: ['show', 'definitely-not-a-server'], exit: 1,
+              expect: [{ file: :stderr, include: ['unknown template'] }] }]
+  },
+  {
+    name: 'add-dry-run',
+    steps: [{ args: ['add', 'gopls', '--dry-run'],
+              expect: [{ file: :stdout, include: ['Would add 1 server', '- gopls'] }] }]
+  },
+  {
+    name: 'add-preset-dry-run-expands',
+    steps: [{ args: ['add', 'golang-dev', '--dry-run'],
+              expect: [{ file: :stdout, include: ['Would add 6 server', 'gopls'] }] }]
+  },
+  {
+    name: 'add-writes-opencode-json',
+    steps: [{ args: ['add', 'gopls', '--opencode'],
+              expect: [{ file: :stdout, include: ['Added 1 server'] },
+                       { file: :json, path: 'opencode.json', sub: 'mcp', contains: %w[gopls] }] }]
+  },
+  {
+    name: 'add-warns-missing-required-env',
+    steps: [{ args: ['add', 'semantic-scholar', '--dry-run'],
+              expect: [{ file: :stderr, include: ['Missing required env var SEMANTIC_SCHOLAR_API_KEY'] }] }]
+  },
+  {
+    name: 'add-all-writes-three-configs',
+    steps: [{ args: ['add', 'gopls', '--all', '--overwrite'],
+              expect: [{ file: :stdout, include: ['Added 1 server'] }] }],
+    post: [
+      { path: 'opencode.json', sub: 'mcp', contains: %w[gopls] },
+      { path: 'antigravity.json', sub: 'mcpServers', contains: %w[gopls] },
+      { path: 'mcp.json', sub: 'mcpServers', contains: %w[gopls] }
+    ]
+  },
+  {
+    name: 'list-after-add',
+    steps: [{ args: ['add', 'gopls', 'context7', '--opencode'],
+              expect: [{ file: :stdout, include: ['Added 2 server'] }] },
+            { args: ['list'],
+              expect: [{ file: :stdout, include: %w[gopls context7] }] }]
+  },
+  {
+    name: 'status-shorthand-lists',
+    steps: [{ args: ['add', 'gopls', '--opencode'],
+              expect: [{ file: :stdout, include: ['Added 1 server'] }] },
+            { args: ['status'],
+              expect: [{ file: :stdout, include: ['gopls'] }] }]
+  },
+  {
+    name: 'rm-removes-from-json',
+    steps: [{ args: ['add', 'gopls', 'context7', '--opencode'],
+              expect: [{ file: :stdout, include: ['Added 2 server'] }] },
+            { args: %w[rm context7],
+              expect: [{ file: :stdout, include: ['Removed context7'] }] },
+            { file: :json, path: 'opencode.json', not_contains: %w[context7] }]
+  },
+  {
+    name: 'rm-unknown-not-found',
+    steps: [{ args: %w[rm ghost],
+              expect: [{ file: :stderr, include: ['Not found: ghost'] }] }]
+  },
+  {
+    name: 'bare-items-default-to-add',
+    steps: [{ args: ['gopls', '--dry-run'],
+              expect: [{ file: :stdout, include: ['Would add 1 server'] }] }]
+  },
+  {
+    name: 'global-help',
+    steps: [{ args: ['--help'],
+              expect: [{ file: :stdout, include: ['Usage of mcpx', 'add', 'template'] }] }]
+  },
+  {
+    name: 'auth-set-get-rm',
+    steps: [{ args: %w[auth set SMOKE_VAR s3cret],
+              expect: [{ file: :stdout, include: ['Set SMOKE_VAR'] }] },
+            { args: %w[auth get SMOKE_VAR],
+              expect: [{ file: :stdout, include: ['cret'] }] },
+            { args: %w[auth list],
+              expect: [{ file: :stdout, include: ['SMOKE_VAR'] }] },
+            { args: %w[auth rm SMOKE_VAR],
+              expect: [{ file: :stdout, include: ['Removed SMOKE_VAR'] }] }]
+  },
+  {
+    name: 'auth-get-unset',
+    steps: [{ args: %w[auth get NEVER_SET_VAR],
+              expect: [{ file: :stdout, include: ['(unset)'] }] }]
+  }
+].freeze
+
+def build_binary(root)
+  bin = File.join(root, 'mcpx')
+  _, err, st = Open3.capture3('go', 'build', '-o', bin, '.')
+  unless st.success?
+    warn "mcpxsmoke.rb: build failed:\n#{err}"
+    return nil
+  end
+  bin
+end
+
+def main(argv)
+  opts = { verbose: false, fail_quick: false, select: nil, bin: nil }
+  parser = OptionParser.new do |o|
+    o.on('--bin PATH', 'Use prebuilt binary (skips build)') { |v| opts[:bin] = v }
+    o.on('--select NAMES', 'Comma-separated test name filter') { |v| opts[:select] = v }
+    o.on('--verbose') { opts[:verbose] = true }
+    o.on('--fail-quick') { opts[:fail_quick] = true }
+    o.on('-h', '--help', 'Show help') do
+      puts o.banner
+      exit 0
+    end
+  end
+  parser.parse!(argv)
+
+  selected = opts[:select] ? opts[:select].split(',') : nil
+  suite = selected ? TESTS.select { |t| t[:name] =~ /#{selected.map { |s| Regexp.escape(s) }.join('|')}/ } : TESTS
+  if suite.empty?
+    warn "mcpxsmoke.rb: no tests matched --select #{opts[:select]}"
+    return 2
+  end
+
+  root = Dir.pwd
+  bin = opts[:bin] || build_binary(root)
+  return 1 unless bin
+
+  results = []
+  Dir.mktmpdir('mcpx-smoke') do |scratch|
+    suite.each_with_index do |t, _i|
+      dir = File.join(scratch, t[:name])
+      FileUtils.mkdir_p(dir)
+      failures = run_steps(bin, dir, t, opts[:verbose])
+      results << [t[:name], failures]
+      break if opts[:fail_quick] && !failures.empty?
+    end
+  end
+
+  passed = results.count { |_, f| f.empty? }
+  failed = results.count { |_, f| !f.empty? }
+  results.select { |_, f| !f.empty? }.each do |name, f|
+    puts "FAIL #{name}"
+    f.each { |m| puts "     - #{m}" }
+  end
+  results.reject { |_, f| !f.empty? }.each { |name, _| puts "PASS #{name}" } if opts[:verbose]
+  puts "\n#{passed} passed, #{failed} failed (#{results.size} total)"
+  failed.zero? ? 0 : 1
+end
+
+def run_steps(bin, dir, test, _verbose)
+  failures = []
+  (test[:steps] || []).each_with_index do |step, idx|
+    out, err, st = Open3.capture3(bin, *step[:args], chdir: dir)
+    exit_code = st.exitstatus
+    want = step[:exit] || 0
+    failures << "[step #{idx}] exit #{exit_code} (want #{want})" unless exit_code == want
+
+    Array(step[:expect]).each do |chk|
+      case chk[:file]
+      when :stdout then base = out
+      when :stderr then base = err
+      when :json then base = read_json_config(dir, chk[:path], chk[:sub])
+      end
+      Array(chk[:include]).each do |sub|
+        failures << "[step #{idx}] stdout: missing '#{sub}'" if chk[:file] == :stdout && !out.include?(sub)
+        failures << "[step #{idx}] stderr: missing '#{sub}'" if chk[:file] == :stderr && !err.include?(sub)
+        if chk[:file] == :json && base.is_a?(String) && !base.include?(sub)
+          failures << "[step #{idx}] #{chk[:path]}: missing '#{sub}'"
+        end
+      end
+      if chk[:file] == :json && base.is_a?(Hash)
+        Array(chk[:contains]).each do |key|
+          failures << "[step #{idx}] #{chk[:path]}: missing key '#{key}'" unless base[key]
+        end
+        Array(chk[:not_contains]).each do |key|
+          failures << "[step #{idx}] #{chk[:path]}: unexpected key '#{key}'" if base[key]
+        end
+      end
+      Array(chk[:not_include]).each do |sub|
+        failures << "[step #{idx}] stdout: unexpected '#{sub}'" if chk[:file] == :stdout && out.include?(sub)
+        failures << "[step #{idx}] stderr: unexpected '#{sub}'" if chk[:file] == :stderr && err.include?(sub)
+      end
+    end
+  end
+
+  # post conditions: JSON file checks after all steps
+  Array(test[:post]).each do |chk|
+    base = read_json_config(dir, chk[:path], chk[:sub])
+    Array(chk[:contains]).each do |key|
+      failures << "[post] #{chk[:path]}: missing key '#{key}'" unless base[key]
+    end
+    Array(chk[:not_contains]).each do |key|
+      failures << "[post] #{chk[:path]}: unexpected key '#{key}'" if base[key]
+    end
+  end
+  failures
+end
+
+def read_json_config(dir, file, sub = nil)
+  p = File.join(dir, file)
+  return {} unless File.file?(p)
+
+  data = JSON.parse(File.read(p))
+  return data unless sub
+
+  data[sub].is_a?(Hash) ? data[sub] : {}
+rescue StandardError
+  {}
+end
+
+exit(main(ARGV.dup))

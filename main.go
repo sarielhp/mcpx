@@ -284,16 +284,22 @@ func cmdRm(names []string, dir string) error {
 	file := path.Join(dir, "opencode.json")
 	root := config.LoadConfig(file)
 	mcp, ok := root["mcp"]
+	mcpObj := map[string]any{}
 	if ok && config.IsObject(mcp) {
-		mcpObj := mcp.(map[string]any)
-		for _, name := range names {
-			if hasKey(mcpObj, name) {
-				delete(mcpObj, name)
-				fmt.Printf("Removed %s\n", name)
-			} else {
-				fmt.Fprintf(os.Stderr, "Not found: %s\n", name)
-			}
+		mcpObj = mcp.(map[string]any)
+	}
+	changed := false
+	for _, name := range names {
+		if hasKey(mcpObj, name) {
+			delete(mcpObj, name)
+			fmt.Printf("Removed %s\n", name)
+			changed = true
+		} else {
+			fmt.Fprintf(os.Stderr, "Not found: %s\n", name)
 		}
+	}
+	if changed {
+		root["mcp"] = mcpObj
 		config.WriteJSON(file, root)
 	}
 	return nil
