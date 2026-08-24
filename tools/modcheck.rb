@@ -1,0 +1,131 @@
+#!/usr/bin/env ruby
+# modcheck.rb — Verify Go module dependencies against the local module cache.
+#
+# Reads go.mod, parses `require` directives, and checks that each dependency is
+# actually present in GOMODCACHE at the required version. Catches dependency
+# drift / missing modules before compile time.
+#
+# Usage:
+#   modcheck.rb                     # check deps in ./go.mod
+#   modcheck.rb --file /path/go.mod
+#   modcheck.rb --dry-run           # show what `go mod tidy` would change
+#   modcheck.rb --fix               # run `go mod tidy`
+#   modcheck.rb --json              # JSON results
+#
+# Exit 0 when all deps resolve; 1 when any are missing/mismatched.
+
+require 'optparse'
+require 'json'
+require 'open3'
+
+def gomodcache_path
+  out = `go env GOMODCACHE 2>/dev/null`.strip
+  return out unless out.empty?
+
+  go_path = `go env GOPATH 2>/dev/null`.strip
+  File.join(go_path, 'pkg', 'mod')
+end
+
+def parse_go_mod(file)
+  text = File.read(file)
+  deps = []
+  in_block = false
+  text.each_line do |line|
+    line = line.strip
+    if line == 'require ('
+      in_block = true
+      next
+    elsif line == ')'
+      in_block = false
+      next
+    end
+
+    next unless in_block || line.start_with?('require ') || line.start_with?('require\t')
+
+    body = line.sub(/^require\s*/, '')
+    next if body.empty? || body.start_with?('(')
+
+    parts = body.split(/\s+/)
+    next unless parts.length >= 2
+
+    mod = parts[0].delete('"')
+    ver = parts[1].delete('"')
+    deps << { module: mod, version: ver }
+  end
+  deps
+end
+
+def cache_path_for(root, mod, version)
+  # module path escaping: uppercase letters get '!' to retain case
+  esc = mod.split('/').map { |seg| seg.match?(/[A-Z]/) ? "#{seg}!" : seg }
+  parent = esc[0..-2].join('/') unless esc.length == 1
+  leaf = esc[-1]
+  full = if esc.length == 1
+           File.join(root, "#{leaf}@#{version}")
+         else
+           File.join(root, parent, "#{leaf}@#{version}")
+         end
+  # fallback: some modules keep the unescaped leaf
+  return full if File.directory?(full)
+
+  File.join(root, parent || '', "#{esc[-1].sub(/!$/, '')}@#{version}")
+end
+
+def check_deps(file, json)
+  unless File.file?(file)
+    warn "modcheck.rb: no such go.mod: #{file}"
+    return 2
+  end
+  deps = parse_go_mod(file)
+  root = gomodcache_path
+  results = deps.map do |d|
+    present = File.directory?(cache_path_for(root, d[:module], d[:version]))
+    { module: d[:module], required: d[:version], cached: present }
+  end
+
+  if json
+    puts JSON.generate(results)
+  else
+    results.each do |r|
+      status = r[:cached] ? 'ok' : 'MISSING'
+      puts "#{status} #{r[:mod]} #{r[:version]}"
+    end
+    puts "modcheck: #{results.count { |r| r[:cached] }} ok, #{results.count { |r| !r[:cached] }} missing"
+  end
+  results.all? { |r| r[:cached] } ? 0 : 1
+end
+
+def esc(seg)
+  seg.match?(/[A-Z]/) ? "#{seg}!" : seg
+end
+
+def main(argv)
+  opts = { file: 'go.mod', fix: false, dry_run: false, json: false }
+  parser = OptionParser.new do |o|
+    o.on('--file FILE', 'Path to go.mod (default: ./go.mod)') { |v| opts[:file] = v }
+    o.on('--fix', 'Run go mod tidy') { opts[:fix] = true }
+    o.on('--dry-run', 'Show what go mod tidy would change') { opts[:dry_run] = true }
+    o.on('--json', 'JSON output') { opts[:json] = true }
+    o.on('-h', '--help', 'Show help') do
+      puts o.banner
+      exit 0
+    end
+  end
+  parser.parse!(argv)
+
+  if opts[:dry_run]
+    _, err, st = Open3.capture3('go', 'mod', 'tidy', '-diff', chdir: File.dirname(File.expand_path(opts[:file])))
+    puts err
+    return st.success? ? 0 : 1
+  end
+
+  if opts[:fix]
+    _out, err, st = Open3.capture3('go', 'mod', 'tidy', chdir: File.dirname(File.expand_path(opts[:file])))
+    puts err unless err.empty?
+    return st.success? ? 0 : 1
+  end
+
+  check_deps(File.expand_path(opts[:file]), opts[:json])
+end
+
+exit(main(ARGV.dup))

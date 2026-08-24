@@ -1,0 +1,222 @@
+#!/usr/bin/env ruby
+# goldendif.rb — Golden-file diff for the mcpx config writers.
+#
+# Generates the three config files (opencode.json, antigravity.json, mcp.json)
+# for a server via `mcpx add <server> --all`, then compares them against
+# committed golden files under testdata/golden/<server>/. Catches structural
+# regressions in the config writer output (not just key presence).
+#
+# Usage:
+#   goldendif.rb                            # check all servers against golden files
+#   goldendif.rb --server gopls             # check a single server
+#   goldendif.rb --update                   # (re)write golden files from current output
+#   goldendif.rb --update --server gopls    # regenerate one server
+#   goldendif.rb --pretty                   # compare pretty-printed form (order-insensitive)
+#   goldendif.rb --verbose
+#   goldendif.rb --no-build                 # use existing bin at --bin
+#
+# Flags:
+#   --server NAME   Only check/update this server
+#   --update        Write golden files instead of comparing
+#   --pretty        Compare pretty-printed JSON (tolerant of key order / whitespace)
+#   --bin PATH      Use a prebuilt mcpx binary
+#   --golden DIR    Golden file root (default: testdata/golden)
+#   --json          Emit JSON results
+#   --fail-fast     Stop at first server with a diff
+#
+# Exit 0 when everything matches; 1 when any diff; 2 on usage/build error.
+
+require 'optparse'
+require 'json'
+require 'fileutils'
+require 'tmpdir'
+require 'open3'
+require 'shellwords'
+
+OUTFILES = %w[opencode.json antigravity.json mcp.json].freeze
+
+def build_binary(root)
+  bin = File.join(root, 'mcpx')
+  _out, _, st = Open3.capture3('go', 'build', '-o', bin, '.')
+  return nil unless st.success?
+
+  bin
+end
+
+def canonical(json_str)
+  JSON.parse(json_str)
+end
+
+def read_text(path)
+  return nil unless File.file?(path)
+
+  File.read(path)
+rescue StandardError
+  nil
+end
+
+# Returns [normalized_a, normalized_b]
+def normalize(a, b, pretty)
+  return [a, b] unless pretty
+
+  [JSON.pretty_generate(JSON.parse(a)), JSON.pretty_generate(JSON.parse(b))]
+rescue StandardError
+  [a, b]
+end
+
+def check_server(bin, dir, server, gold_root, pretty, verbose)
+  outdir = File.join(dir, 'out')
+  FileUtils.mkdir_p(outdir)
+  _o, e, st = Open3.capture3(bin, 'add', server, '--all', '--overwrite', chdir: outdir)
+  return { server: server, ok: false, error: "mcpx add failed: #{e.strip}", diffs: [] } unless st.success?
+
+  diffs = []
+  OUTFILES.each do |f|
+    actual = read_text(File.join(outdir, f))
+    golden = read_text(File.join(gold_root, server, f))
+    if actual.nil?
+      diffs << "#{f}: missing (server generated no output)"
+      next
+    end
+    if golden.nil?
+      diffs << "#{f}: no golden file (run with --update)"
+      next
+    end
+    na, nb = normalize(actual, golden, pretty)
+    unless na == nb
+      diffs << "#{f}: differs"
+      diffs << diff_lines(golden, actual, f) if verbose
+    end
+  end
+  { server: server, ok: diffs.empty?, diffs: diffs, generated: actual_paths(File.join(outdir), server) }
+end
+
+def actual_paths(outdir, _server)
+  OUTFILES.map { |f| File.join(outdir, f) }
+end
+
+def diff_lines(a, b, label)
+  Dir.mktmpdir('gdiff') do |d|
+    fa = File.join(d, 'a.json')
+    fb = File.join(d, 'b.json')
+    File.write(fa, a)
+    File.write(fb, b)
+    out = `diff -u #{Shellwords.escape(fa)} #{Shellwords.escape(fb)} 2>&1`
+    out.lines.map { |l| "    #{label}: #{l.chomp}" }
+  end
+end
+
+def update_server(bin, dir, server, gold_root, pretty)
+  outdir = File.join(dir, 'out')
+  FileUtils.mkdir_p(outdir)
+  _o, e, st = Open3.capture3(bin, 'add', server, '--all', '--overwrite', chdir: outdir)
+  return { server: server, ok: false, error: "mcpx add failed: #{e.strip}", updated: [] } unless st.success?
+
+  target = File.join(gold_root, server)
+  FileUtils.mkdir_p(target)
+  updated = []
+  OUTFILES.each do |f|
+    actual = read_text(File.join(outdir, f))
+    next if actual.nil?
+
+    if pretty
+      actual = begin
+        JSON.pretty_generate(JSON.parse(actual))
+      rescue StandardError
+        actual
+      end
+    end
+    File.write(File.join(target, f), actual)
+    updated << f
+  end
+  { server: server, ok: true, updated: updated }
+end
+
+def all_server_names(bin, dir)
+  outdir = File.join(dir, 'names')
+  FileUtils.mkdir_p(outdir)
+  out, _e, st = Open3.capture3(bin, 'template', 'list', chdir: outdir)
+  return [] unless st.success?
+
+  section = false
+  names = []
+  out.lines.each do |line|
+    if line =~ /^Servers:$/
+      section = true
+      next
+    elsif line =~ /^Presets:$/
+      break
+    end
+    names << line.strip if section && line =~ /^\s*(\S+)$/
+  end
+  names
+end
+
+def main(argv)
+  opts = { server: nil, update: false, pretty: false, bin: nil, golden: nil, json: false, verbose: false,
+           fail_fast: false }
+  parser = OptionParser.new do |o|
+    o.on('--server NAME', 'Only check/update this server') { |v| opts[:server] = v }
+    o.on('--update', 'Write golden files instead of comparing') { opts[:update] = true }
+    o.on('--pretty', 'Compare pretty-printed JSON') { opts[:pretty] = true }
+    o.on('--bin PATH', 'Prebuilt mcpx binary (skips build)') { |v| opts[:bin] = v }
+    o.on('--golden DIR', 'Golden file root (default testdata/golden)') { |v| opts[:golden] = v }
+    o.on('--json', 'JSON results') { opts[:json] = true }
+    o.on('--verbose') { opts[:verbose] = true }
+    o.on('--fail-fast') { opts[:fail_fast] = true }
+    o.on('-h', '--help', 'Show help') do
+      puts o.banner
+      exit 0
+    end
+  end
+  parser.parse!(argv)
+
+  root = Dir.pwd
+  gold_root = opts[:golden] || File.join(root, 'testdata', 'golden')
+  bin = opts[:bin] || build_binary(root)
+  return 1 unless bin
+
+  Dir.mktmpdir('goldendif') do |dir|
+    names = opts[:server] ? [opts[:server]] : all_server_names(bin, dir)
+    if names.empty?
+      warn 'goldendif: no servers available (build succeeded but template list empty?)'
+      return 1
+    end
+
+    results = []
+    names.each do |name|
+      results << if opts[:update]
+                   update_server(bin, dir, name, gold_root, opts[:pretty])
+                 else
+                   check_server(bin, dir, name, gold_root, opts[:pretty], opts[:verbose])
+                 end
+      break if opts[:fail_fast] && results.last[:ok] == false
+    end
+
+    ok = results.all? { |r| r[:ok] }
+    if opts[:json]
+      puts JSON.generate(results)
+      return ok ? 0 : 1
+    end
+
+    if opts[:update]
+      results.each do |r|
+        label = r[:ok] ? 'UPDATED' : 'FAILED'
+        puts "#{label} #{r[:server]}"
+        puts "    #{r[:error]}" if r[:error]
+      end
+      puts "goldendif: updated #{results.count { |r| r[:ok] }} / #{results.size} server(s)"
+      return results.all? { |r| r[:ok] } ? 0 : 1
+    end
+
+    results.select { |r| !r[:ok] }.each do |r|
+      puts "DIFF #{r[:server]}"
+      puts "    #{r[:error]}" if r[:error]
+      r[:diffs]&.each { |d| puts "    #{d}" }
+    end
+    puts "goldendif: #{results.count { |r| r[:ok] }} ok, #{results.count { |r| !r[:ok] }} diffs"
+    ok ? 0 : 1
+  end
+end
+
+exit(main(ARGV.dup))
