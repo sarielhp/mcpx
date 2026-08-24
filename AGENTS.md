@@ -29,11 +29,38 @@ tools/mcpxsmoke            # regression smoke tests (builds the binary)
 The smoke suite is the primary correctness gate; run it after any change to
 `main.go`, the config writers, or the template schemas.
 
+## Scripting & Task Automation
+
+- **Primary Scripting Language**: Always use **Ruby** for all scripts,
+  automation tasks, file manipulation, data processing, and utility tooling.
+- **Avoid Alternatives**: Do not write scripts in Python, Bash/Shell, Awk,
+  Sed, Perl, etc. Whenever a task would typically use a shell script,
+  awk/sed one-liner, or Python script, implement it using Ruby instead.
+- **Exception for Python**: Python is strictly restricted and may only be used
+  when it is the sole reasonable option (e.g., interacting with a Python-only
+  SDK/framework with no Ruby bindings or alternative).
+- **Proactive Tooling in `tools/`**:
+  - Whenever a task involves repetitive operations (batch file updates,
+    multi-file inspection, AST queries, log analysis, schema transformations,
+    line audits), **proactively write a standalone Ruby script under the
+    `tools/` directory** rather than performing the task through repeated
+    manual LLM tool calls.
+  - Do NOT create a `README.md` inside `tools/`. Scripts must be
+    self-documenting via top-level comment headers and `--help` options (using
+    Ruby's `OptionParser`).
+  - Use `#!/usr/bin/env ruby` for standalone executable scripts and run them
+    directly (no `.rb` extension; `chmod +x`).
+  - Ensure scripts are executable, idiomatic, handle errors cleanly, and
+    output compact, actionable summaries.
+  - Leverage Ruby's standard library modules (such as `fileutils`, `open3`,
+    `json`, `csv`, `optparse`, `uri`, `net/http`) where appropriate.
+
 ## Development Tools (`tools/`)
 
-All tools are standalone Ruby scripts (`#!/usr/bin/env ruby`) with `OptionParser`.
-Do NOT create a README inside `tools/`; each script is self-documenting via
-`--help` and top-level comments.
+All tools are standalone Ruby scripts (`#!/usr/bin/env ruby`), executable
+directly (no `.rb` extension), using `OptionParser`. Do NOT create a README
+inside `tools/`; each script is self-documenting via `--help` and top-level
+comments.
 
 ### Go API / Module discovery
 
@@ -146,10 +173,8 @@ Flags: `-m/--message MSG` (positional arg also accepted), `--no-push`,
 
 ## Conventions
 
-- **Scripting**: use Ruby for all scripts; never shell/awk/sed one-liners or
-  Python for tooling.
-- **No `tools/README.md`**: scripts self-document via top-level comments and
-  `--help`.
+- See the **Scripting & Task Automation** section above for the Ruby-only
+  scripting rules and the `tools/` conventions.
 - **Commit/push often**; the remote is `origin/master` on GitHub
   (`github.com/sarielhp/mcpx`).
 - When adding a server template, also consider adding a `recommends` entry and
