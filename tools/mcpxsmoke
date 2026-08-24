@@ -121,6 +121,11 @@ TESTS = [
               expect: [{ file: :stdout, include: ['Usage of mcpx', 'add', 'template'] }] }]
   },
   {
+    name: 'repos-lists-two-repos',
+    steps: [{ args: ['--repos'],
+              expect: [{ file: :stdout, include: ['github.com/sarielhp/mcpx', 'github.com/sarielhp/mcp-templates', '<a href='] }] }]
+  },
+  {
     name: 'auth-set-get-rm',
     steps: [{ args: %w[auth set SMOKE_VAR s3cret],
               expect: [{ file: :stdout, include: ['Set SMOKE_VAR'] }] },

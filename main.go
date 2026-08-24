@@ -29,7 +29,18 @@ func main() {
 		return
 	}
 
-	if err := app.Execute(applyShorthands(os.Args[1:])); err != nil {
+	// Top-level convenience flags that bypass the command dispatcher.
+	rawArgs := os.Args[1:]
+	if len(rawArgs) == 1 && (rawArgs[0] == "--repos" || rawArgs[0] == "--repositories") {
+		if err := cmdRepos(); err != nil {
+			clihelp.PrintError(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	args := applyShorthands(rawArgs)
+	if err := app.Execute(args); err != nil {
 		clihelp.PrintError(err)
 		os.Exit(1)
 	}
