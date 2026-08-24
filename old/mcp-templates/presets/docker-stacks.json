@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "docker": {
+      "command": "npx",
+      "args": ["-y", "mcp-docker-server"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["--with", "mcp<1.2.0", "mcp-server-fetch"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@thelord/mcp-cloudflare"],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "${CLOUDFLARE_API_TOKEN}",
+        "CLOUDFLARE_ZONE_ID": "${CLOUDFLARE_ZONE_ID}"
+      }
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "mcp-git"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "{{PROJECT_ROOT}}"]
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "arxiv": {
+      "command": "uvx",
+      "args": ["arxiv-mcp-server"]
+    },
+    "semantic-scholar": {
+      "command": "uvx",
+      "args": ["s2-mcp-server"],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "${SEMANTIC_SCHOLAR_API_KEY}"
+      }
+    },
+    "markitdown": {
+      "command": "uvx",
+      "args": ["markitdown-mcp"]
+    },
+    "sympy": {
+      "command": "uvx",
+      "args": ["mcp-sympy"]
+    },
+    "latex": {
+      "command": "uvx",
+      "args": ["texflow-mcp"]
+    },
+    "zotero": {
+      "command": "npx",
+      "args": ["-y", "mcp-zotero"],
+      "env": {
+        "ZOTERO_API_KEY": "${ZOTERO_API_KEY}",
+        "ZOTERO_USER_ID": "${ZOTERO_USER_ID}"
+      }
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      }
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["--with", "mcp<1.2.0", "mcp-server-fetch"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "mcp-git"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "{{PROJECT_ROOT}}"]
+    }
+  }
+}

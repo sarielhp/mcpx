@@ -1,0 +1,5 @@
+{
+  "ha-mcp": {
+    "serverUrl": "http://192.168.1.216:8123/api/webhook/mcp_940d22ceef80818e6405834e18ab66a6"
+  }
+}

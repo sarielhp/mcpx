@@ -1,0 +1,10 @@
+{
+  "julia": {
+    "command": "uvx",
+    "args": [
+      "--from",
+      "git+https://github.com/aplavin/julia-mcp",
+      "julia-mcp"
+    ]
+  }
+}

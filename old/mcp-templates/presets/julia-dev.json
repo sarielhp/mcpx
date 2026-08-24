@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "julia": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/aplavin/julia-mcp",
+        "julia-mcp"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "{{PROJECT_ROOT}}"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["--with", "mcp<1.2.0", "mcp-server-fetch"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "mcp-git"]
+    }
+  }
+}

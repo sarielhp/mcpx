@@ -1,0 +1,1433 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'optparse'
+require 'pathname'
+require 'fileutils'
+require 'open3'
+
+# ANSI Color helpers
+USE_COLOR = $stdout.tty? && ENV['NO_COLOR'].nil?
+
+def colorize(text, code)
+  USE_COLOR ? "\e[#{code}m#{text}\e[0m" : text
+end
+
+def bold(text);   colorize(text, '1');  end
+def green(text);  colorize(text, '32'); end
+def cyan(text);   colorize(text, '36'); end
+def yellow(text); colorize(text, '33'); end
+def red(text);    colorize(text, '31'); end
+def dim(text);    colorize(text, '2');  end
+
+# Locate template directory
+def find_template_dir
+  if ENV['MCP_TEMPLATES_DIR'] && Dir.exist?(ENV['MCP_TEMPLATES_DIR'])
+    return Pathname.new(ENV['MCP_TEMPLATES_DIR']).expand_path
+  end
+
+  script_parent = Pathname.new(__dir__).parent.expand_path
+  if (script_parent + 'presets').directory? || (script_parent + 'servers').directory?
+    return script_parent
+  end
+
+  config_dir = Pathname.new(Dir.home) + '.config' + 'mcp-templates'
+  return config_dir if config_dir.directory?
+
+  script_parent
+end
+
+TEMPLATE_DIR = find_template_dir
+PRESETS_DIR  = TEMPLATE_DIR + 'presets'
+SERVERS_DIR  = TEMPLATE_DIR + 'servers'
+
+def load_json_file(path)
+  raw = File.read(path, encoding: 'UTF-8')
+  # Strip simple single-line comments for JSONC compatibility
+  cleaned = raw.lines.reject { |line| line.strip.start_with?('//', '#') }.join
+  JSON.parse(cleaned)
+end
+
+def load_dotenv(target_dir)
+  env_file = Pathname.new(target_dir) + '.env'
+  return {} unless env_file.file?
+
+  vars = {}
+  File.readlines(env_file, encoding: 'UTF-8').each do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?('#')
+    key, val = line.split('=', 2)
+    next unless key && val
+    key = key.strip
+    val = val.strip
+    if (val.start_with?('"') && val.end_with?('"')) || (val.start_with?("'") && val.end_with?("'"))
+      val = val[1..-2]
+    end
+    vars[key] = val
+  end
+  vars
+end
+
+def replace_placeholders(obj, target_dir, dotenv_vars = nil)
+  dotenv_vars ||= load_dotenv(target_dir)
+
+  case obj
+  when String
+    res = obj.gsub('{{PROJECT_ROOT}}', target_dir)
+             .gsub('{{CWD}}', target_dir)
+             .gsub('${PROJECT_ROOT}', target_dir)
+             .gsub('${PWD}', target_dir)
+    dotenv_vars.each do |k, v|
+      res = res.gsub("${#{k}}", v).gsub("{{#{k}}}", v)
+    end
+    res
+  when Array
+    obj.map { |item| replace_placeholders(item, target_dir, dotenv_vars) }
+  when Hash
+    obj.transform_values { |v| replace_placeholders(v, target_dir, dotenv_vars) }
+  else
+    obj
+  end
+end
+
+def normalize_server_definition(name, raw_def)
+  normalized = {}
+
+  # Remote server
+  server_url = raw_def['serverUrl'] || raw_def['url']
+  if server_url || raw_def['type'] == 'remote'
+    normalized['serverUrl'] = server_url
+    normalized['headers'] = raw_def['headers'] if raw_def['headers']
+    return normalized
+  end
+
+  # Command handling
+  cmd = raw_def['command']
+  if cmd.is_a?(Array) && !cmd.empty?
+    normalized['command'] = cmd.first
+    normalized['args'] = cmd[1..]
+  elsif cmd.is_a?(String)
+    normalized['command'] = cmd
+    normalized['args'] = raw_def['args'] if raw_def['args'].is_a?(Array)
+  end
+
+  # Environment variables
+  env = raw_def['env'] || raw_def['environment']
+  normalized['env'] = env if env.is_a?(Hash)
+
+  normalized
+end
+
+def to_opencode_format(norm_def)
+  if norm_def['serverUrl']
+    out = {
+      'type' => 'remote',
+      'url' => norm_def['serverUrl'],
+      'enabled' => true
+    }
+    out['headers'] = norm_def['headers'] if norm_def['headers']
+    return out
+  end
+
+  cmd_arr = [norm_def['command']].compact
+  cmd_arr += norm_def['args'] if norm_def['args'].is_a?(Array)
+
+  out = {
+    'type' => 'local',
+    'command' => cmd_arr,
+    'enabled' => true
+  }
+  out['environment'] = norm_def['env'] if norm_def['env'] && !norm_def['env'].empty?
+  out
+end
+
+def to_standard_format(norm_def)
+  if norm_def['serverUrl']
+    out = { 'serverUrl' => norm_def['serverUrl'] }
+    out['headers'] = norm_def['headers'] if norm_def['headers']
+    return out
+  end
+
+  out = { 'command' => norm_def['command'] }
+  out['args'] = norm_def['args'] if norm_def['args']
+  out['env'] = norm_def['env'] if norm_def['env'] && !norm_def['env'].empty?
+  out
+end
+
+def get_available_presets
+  presets = {}
+  if PRESETS_DIR.directory?
+    PRESETS_DIR.glob('*.json').sort.each do |p|
+      presets[p.basename('.json').to_s] = p
+    end
+  end
+  presets
+end
+
+def get_available_servers
+  servers = {}
+  if SERVERS_DIR.directory?
+    SERVERS_DIR.glob('*.json').sort.each do |p|
+      servers[p.basename('.json').to_s] = p
+    end
+  end
+  servers
+end
+
+def load_items(items, target_dir)
+  presets = get_available_presets
+  servers = get_available_servers
+  combined = {}
+
+  items.each do |item|
+    item_path = Pathname.new(item).expand_path
+    if item_path.file?
+      data = load_json_file(item_path)
+      data = replace_placeholders(data, target_dir)
+      if data['mcpServers'].is_a?(Hash)
+        data['mcpServers'].each { |k, v| combined[k] = normalize_server_definition(k, v) }
+      elsif data['mcp'].is_a?(Hash)
+        data['mcp'].each { |k, v| combined[k] = normalize_server_definition(k, v) }
+      elsif data.is_a?(Hash)
+        data.each { |k, v| combined[k] = normalize_server_definition(k, v) if v.is_a?(Hash) }
+      end
+      next
+    end
+
+    if presets.key?(item)
+      data = load_json_file(presets[item])
+      data = replace_placeholders(data, target_dir)
+      server_dict = data['mcpServers'] || data
+      if server_dict.is_a?(Hash)
+        server_dict.each { |k, v| combined[k] = normalize_server_definition(k, v) }
+      end
+      next
+    end
+
+    if servers.key?(item)
+      data = load_json_file(servers[item])
+      data = replace_placeholders(data, target_dir)
+      if data[item].is_a?(Hash)
+        combined[item] = normalize_server_definition(item, data[item])
+      elsif data.is_a?(Hash)
+        data.each { |k, v| combined[k] = normalize_server_definition(k, v) if v.is_a?(Hash) }
+      end
+      next
+    end
+
+    warn "#{red('Error:')} Item '#{item}' is not a known preset or server, and not a valid file path."
+    warn "Run 'mcp-init --list' to see available presets and servers."
+    exit 1
+  end
+
+  combined
+end
+
+# Testing Subsystem
+def executable_in_path?(cmd)
+  ENV['PATH'].to_s.split(File::PATH_SEPARATOR).any? do |dir|
+    file = File.join(dir, cmd)
+    File.executable?(file) && !File.directory?(file)
+  end
+end
+
+def read_json_response_with_timeout(stdout, timeout_sec, target_id = nil)
+  end_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout_sec
+  loop do
+    remaining = end_time - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    return nil if remaining <= 0
+
+    ready = IO.select([stdout], nil, nil, [remaining, 0.05].max)
+    return nil unless ready && ready[0].include?(stdout)
+
+    line = stdout.gets
+    return nil if line.nil?
+    line = line.strip
+    next if line.empty?
+
+    begin
+      parsed = JSON.parse(line)
+      if target_id.nil? || parsed['id'] == target_id || parsed.key?('result') || parsed.key?('error')
+        return parsed
+      end
+    rescue JSON::ParserError
+      # Skip non-JSON stdout logs
+    end
+  end
+end
+
+def test_mcp_server(name, srv_def, target_dir, timeout_sec = 8, verbose = false)
+  norm = normalize_server_definition(name, srv_def)
+
+  if norm['serverUrl']
+    return {
+      status: :skipped,
+      message: "Remote server (#{norm['serverUrl']}): live HTTP probe not run in stdio test mode",
+      duration_ms: 0
+    }
+  end
+
+  command = norm['command']
+  args = (norm['args'] || []).map { |a| replace_placeholders(a, target_dir.to_s) }
+  env = norm['env'] || {}
+
+  unless executable_in_path?(command)
+    return {
+      status: :error,
+      message: "Command executable '#{command}' not found in PATH",
+      duration_ms: 0
+    }
+  end
+
+  full_cmd = [command] + args
+  start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+  init_req = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'mcp-init-test', version: '1.0.0' }
+    }
+  }.to_json + "\n"
+
+  notif_init = { jsonrpc: '2.0', method: 'notifications/initialized' }.to_json + "\n"
+  tools_req = { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }.to_json + "\n"
+
+  dotenv_vars = load_dotenv(target_dir)
+  merged_env = ENV.to_h.merge(dotenv_vars).merge(env)
+
+  begin
+    Open3.popen3(merged_env, *full_cmd, chdir: target_dir.to_s) do |stdin, stdout, stderr, wait_thr|
+      stdin.write(init_req)
+      stdin.flush
+
+      init_resp = read_json_response_with_timeout(stdout, timeout_sec, 1)
+
+      if init_resp.nil?
+        stderr_sample = begin
+          stderr.read_nonblock(500)
+        rescue StandardError
+          ''
+        end
+        stdin.close rescue nil
+        Process.kill('KILL', wait_thr.pid) rescue nil
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000).round
+
+        msg = if stderr_sample.strip.empty?
+                "Timed out after #{timeout_sec}s with no initialize response"
+              else
+                stderr_sample.strip.lines.first(2).join(' ').strip
+              end
+
+        return {
+          status: :error,
+          message: msg,
+          duration_ms: duration_ms
+        }
+      end
+
+      # Send notifications/initialized and tools/list
+      stdin.write(notif_init)
+      stdin.write(tools_req)
+      stdin.flush
+
+      tools_resp = read_json_response_with_timeout(stdout, 3, 2)
+      tools_list = (tools_resp&.dig('result', 'tools') || []).map { |t| t['name'] }
+
+      stdin.close rescue nil
+      Process.kill('KILL', wait_thr.pid) rescue nil
+
+      duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000).round
+      server_info = init_resp.dig('result', 'serverInfo') || {}
+      srv_name = server_info['name'] || name
+      srv_ver  = server_info['version'] || ''
+
+      return {
+        status: :ok,
+        server_info: "#{srv_name} #{srv_ver}".strip,
+        tools: tools_list,
+        duration_ms: duration_ms
+      }
+    end
+  rescue StandardError => e
+    duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000).round
+    {
+      status: :error,
+      message: e.message,
+      duration_ms: duration_ms
+    }
+  end
+end
+
+def cmd_test(target_items, target_dir, timeout_sec = 8, verbose = false)
+  all_servers = get_available_servers
+  servers_to_test = {}
+
+  if target_items.empty?
+    # Test all servers
+    all_servers.each do |name, path|
+      begin
+        data = load_json_file(path)
+        servers_to_test[name] = data[name] || data
+      rescue StandardError => e
+        warn "#{yellow('!')} Failed to load #{path}: #{e.message}"
+      end
+    end
+  else
+    target_items.each do |item|
+      if all_servers.key?(item)
+        data = load_json_file(all_servers[item])
+        servers_to_test[item] = data[item] || data
+      else
+        # Try loading as preset or custom items
+        begin
+          loaded = load_items([item], target_dir.to_s)
+          loaded.each { |k, v| servers_to_test[k] = v }
+        rescue StandardError => e
+          warn "#{red('Error:')} Could not load '#{item}' to test: #{e.message}"
+        end
+      end
+    end
+  end
+
+  if servers_to_test.empty?
+    warn "#{red('Error:')} No servers found to test."
+    exit 1
+  end
+
+  puts "\n#{bold('🧪 Testing MCP Server Handshakes')} (#{servers_to_test.size} servers)\n"
+  puts "  #{dim('Working Directory:')} #{cyan(target_dir.to_s)}"
+  puts "  #{dim('Timeout:')}           #{timeout_sec}s\n\n"
+
+  passed = 0
+  failed = 0
+  skipped = 0
+
+  servers_to_test.each do |name, defn|
+    printf "  %-18s ", bold(name)
+    $stdout.flush
+
+    res = test_mcp_server(name, defn, target_dir, timeout_sec, verbose)
+
+    case res[:status]
+    when :ok
+      passed += 1
+      tools_info = res[:tools].empty? ? 'no tools' : "#{res[:tools].size} tools: #{res[:tools].first(4).join(', ')}#{res[:tools].size > 4 ? '...' : ''}"
+      puts "#{green('✓ PASS')} #{dim("[#{res[:duration_ms]}ms]")} #{dim('→')} #{dim(res[:server_info])} #{cyan("(#{tools_info})")}"
+    when :skipped
+      skipped += 1
+      puts "#{yellow('• SKIP')} #{dim(res[:message])}"
+    when :error
+      failed += 1
+      puts "#{red('✗ FAIL')} #{dim("[#{res[:duration_ms]}ms]")} #{dim('→')} #{red(res[:message])}"
+    end
+  end
+
+  puts "\n#{bold('Test Summary:')} #{green("#{passed} passed")}, #{failed > 0 ? red("#{failed} failed") : '0 failed'}, #{skipped} skipped.\n\n"
+  exit(failed > 0 ? 1 : 0)
+end
+
+# Target Handlers
+def apply_antigravity(target_dir, servers, overwrite, dry_run)
+  plugin_dir = target_dir + '.agents' + 'plugins' + 'mcp'
+  mcp_file = plugin_dir + 'mcp_config.json'
+  manifest_file = plugin_dir + 'plugin.json'
+
+  target_mcp_servers = servers.transform_values { |v| to_standard_format(v) }
+
+  status = 'Created'
+  existing_data = {}
+  if mcp_file.file? && !overwrite
+    status = 'Updated'
+    begin
+      existing_data = load_json_file(mcp_file)
+    rescue StandardError
+      existing_data = {}
+    end
+  end
+
+  current_servers = existing_data['mcpServers'].is_a?(Hash) ? existing_data['mcpServers'] : {}
+  merged_servers = current_servers.merge(target_mcp_servers)
+
+  final_config = { 'mcpServers' => merged_servers }
+  manifest = {
+    'name' => 'mcp',
+    'description' => 'Workspace MCP server configuration'
+  }
+
+  unless dry_run
+    FileUtils.mkdir_p(plugin_dir)
+    unless manifest_file.file? && !overwrite
+      File.write(manifest_file, JSON.pretty_generate(manifest) + "\n")
+    end
+    File.write(mcp_file, JSON.pretty_generate(final_config) + "\n")
+  end
+
+  [mcp_file, status, merged_servers.keys]
+end
+
+def apply_opencode(target_dir, servers, overwrite, dry_run)
+  dot_opencode = target_dir + '.opencode' + 'opencode.json'
+  root_opencode = target_dir + 'opencode.json'
+
+  target_file = if dot_opencode.file?
+                  dot_opencode
+                elsif root_opencode.file?
+                  root_opencode
+                elsif (target_dir + '.opencode').directory?
+                  dot_opencode
+                else
+                  root_opencode
+                end
+
+  opencode_servers = servers.transform_values { |v| to_opencode_format(v) }
+
+  status = 'Created'
+  existing_config = {}
+  if target_file.file? && !overwrite
+    status = 'Updated'
+    begin
+      existing_config = load_json_file(target_file)
+    rescue StandardError
+      existing_config = {}
+    end
+  end
+
+  final_config = existing_config.dup
+  final_config['$schema'] ||= 'https://opencode.ai/config.json'
+
+  current_mcp = final_config['mcp'].is_a?(Hash) ? final_config['mcp'] : {}
+  merged_mcp = current_mcp.merge(opencode_servers)
+  final_config['mcp'] = merged_mcp
+
+  unless dry_run
+    FileUtils.mkdir_p(target_file.parent)
+    File.write(target_file, JSON.pretty_generate(final_config) + "\n")
+  end
+
+  [target_file, status, merged_mcp.keys]
+end
+
+def apply_standard_dir(target_dir, subdir, filename, servers, overwrite, dry_run)
+  out_dir = target_dir + subdir
+  out_file = out_dir + filename
+
+  target_mcp_servers = servers.transform_values { |v| to_standard_format(v) }
+
+  status = 'Created'
+  existing_data = {}
+  if out_file.file? && !overwrite
+    status = 'Updated'
+    begin
+      existing_data = load_json_file(out_file)
+    rescue StandardError
+      existing_data = {}
+    end
+  end
+
+  current_servers = existing_data['mcpServers'].is_a?(Hash) ? existing_data['mcpServers'] : {}
+  merged_servers = current_servers.merge(target_mcp_servers)
+  final_config = { 'mcpServers' => merged_servers }
+
+  unless dry_run
+    FileUtils.mkdir_p(out_dir)
+    File.write(out_file, JSON.pretty_generate(final_config) + "\n")
+  end
+
+  [out_file, status, merged_servers.keys]
+end
+
+def cmd_list
+  presets = get_available_presets
+  servers = get_available_servers
+
+  puts "\n#{bold(cyan('📦 Available MCP Presets:'))} (#{TEMPLATE_DIR}/presets)"
+  if presets.empty?
+    puts "  #{dim('No presets found.')}"
+  else
+    presets.keys.sort.each do |name|
+      begin
+        data = load_json_file(presets[name])
+        s_dict = data['mcpServers'] || data
+        srv_names = s_dict.is_a?(Hash) ? s_dict.keys.join(', ') : ''
+        printf "  • %-20s %s %s\n", bold(name), dim('→'), cyan(srv_names)
+      rescue StandardError
+        printf "  • %s\n", bold(name)
+      end
+    end
+  end
+
+  puts "\n#{bold(green('🔌 Available MCP Individual Servers:'))} (#{TEMPLATE_DIR}/servers)"
+  if servers.empty?
+    puts "  #{dim('No server templates found.')}"
+  else
+    servers.keys.sort.each do |name|
+      begin
+        data = load_json_file(servers[name])
+        s_def = data[name] || data
+        cmd = s_def['command'] || s_def['serverUrl'] || ''
+        args = (s_def['args'] || []).join(' ')
+        desc = "#{cmd} #{args}".strip
+        desc = "#{desc[0...57]}..." if desc.length > 60
+        printf "  • %-20s %s %s\n", bold(name), dim('→'), dim(desc)
+      rescue StandardError
+        printf "  • %s\n", bold(name)
+      end
+    end
+  end
+  puts
+end
+
+def cmd_show(name)
+  presets = get_available_presets
+  servers = get_available_servers
+
+  if presets.key?(name)
+    puts "#{bold(cyan("Preset: #{name}"))} (#{presets[name]})"
+    puts File.read(presets[name])
+  elsif servers.key?(name)
+    puts "#{bold(green("Server: #{name}"))} (#{servers[name]})"
+    puts File.read(servers[name])
+  else
+    warn "#{red('Error:')} No preset or server found matching '#{name}'"
+    exit 1
+  end
+end
+
+def cmd_status(target_dir)
+  puts "\n#{bold('MCP Status for:')} #{cyan(target_dir.to_s)}\n\n"
+
+  # Antigravity
+  agy_file = target_dir + '.agents' + 'plugins' + 'mcp' + 'mcp_config.json'
+  if agy_file.file?
+    begin
+      data = load_json_file(agy_file)
+      srvs = (data['mcpServers'] || {}).keys
+      puts "  #{green('✓')} #{bold('Antigravity CLI')}: #{dim(agy_file.to_s)}"
+      puts "    Servers: #{cyan(srvs.empty? ? 'none' : srvs.join(', '))}"
+    rescue StandardError => e
+      puts "  #{yellow('!')} Antigravity CLI: #{red(e.message)}"
+    end
+  else
+    puts "  #{dim('• Antigravity CLI: Not configured')}"
+  end
+
+  # OpenCode
+  opencode_file = target_dir + 'opencode.json'
+  opencode_file = target_dir + '.opencode' + 'opencode.json' unless opencode_file.file?
+  if opencode_file.file?
+    begin
+      data = load_json_file(opencode_file)
+      srvs = (data['mcp'] || {}).keys
+      puts "  #{green('✓')} #{bold('OpenCode')}:        #{dim(opencode_file.to_s)}"
+      puts "    Servers: #{cyan(srvs.empty? ? 'none' : srvs.join(', '))}"
+    rescue StandardError => e
+      puts "  #{yellow('!')} OpenCode: #{red(e.message)}"
+    end
+  else
+    puts "  #{dim('• OpenCode: Not configured')}"
+  end
+
+  # Cursor
+  cursor_file = target_dir + '.cursor' + 'mcp.json'
+  if cursor_file.file?
+    begin
+      data = load_json_file(cursor_file)
+      srvs = (data['mcpServers'] || {}).keys
+      puts "  #{green('✓')} #{bold('Cursor')}:          #{dim(cursor_file.to_s)}"
+      puts "    Servers: #{cyan(srvs.empty? ? 'none' : srvs.join(', '))}"
+    rescue StandardError => e
+      puts "  #{yellow('!')} Cursor: #{red(e.message)}"
+    end
+  end
+
+  # Claude
+  claude_file = target_dir + '.claude' + 'mcp.json'
+  if claude_file.file?
+    begin
+      data = load_json_file(claude_file)
+      srvs = (data['mcpServers'] || {}).keys
+      puts "  #{green('✓')} #{bold('Claude')}:          #{dim(claude_file.to_s)}"
+      puts "    Servers: #{cyan(srvs.empty? ? 'none' : srvs.join(', '))}"
+    rescue StandardError => e
+      puts "  #{yellow('!')} Claude: #{red(e.message)}"
+    end
+  end
+
+  # VS Code
+  vscode_file = target_dir + '.vscode' + 'mcp.json'
+  if vscode_file.file?
+    begin
+      data = load_json_file(vscode_file)
+      srvs = (data['mcpServers'] || {}).keys
+      puts "  #{green('✓')} #{bold('VS Code')}:         #{dim(vscode_file.to_s)}"
+      puts "    Servers: #{cyan(srvs.empty? ? 'none' : srvs.join(', '))}"
+    rescue StandardError => e
+      puts "  #{yellow('!')} VS Code: #{red(e.message)}"
+    end
+  end
+
+  puts
+end
+
+def cmd_remove(target_dir, remove_names)
+  to_remove = remove_names.map(&:to_s)
+  puts "\n#{bold('Removing servers:')} #{red(to_remove.join(', '))} from #{cyan(target_dir.to_s)}\n\n"
+
+  # Antigravity
+  agy_file = target_dir + '.agents' + 'plugins' + 'mcp' + 'mcp_config.json'
+  if agy_file.file?
+    begin
+      data = load_json_file(agy_file)
+      if data['mcpServers'].is_a?(Hash)
+        to_remove.each { |name| data['mcpServers'].delete(name) }
+        File.write(agy_file, JSON.pretty_generate(data) + "\n")
+        puts "  #{green('✓')} Updated Antigravity config at #{dim(agy_file.to_s)}"
+      end
+    rescue StandardError => e
+      puts "  #{red('✗')} Failed to update #{agy_file}: #{e.message}"
+    end
+  end
+
+  # OpenCode
+  [target_dir + 'opencode.json', target_dir + '.opencode' + 'opencode.json'].each do |op_path|
+    next unless op_path.file?
+    begin
+      data = load_json_file(op_path)
+      if data['mcp'].is_a?(Hash)
+        to_remove.each { |name| data['mcp'].delete(name) }
+        File.write(op_path, JSON.pretty_generate(data) + "\n")
+        puts "  #{green('✓')} Updated OpenCode config at #{dim(op_path.to_s)}"
+      end
+    rescue StandardError => e
+      puts "  #{red('✗')} Failed to update #{op_path}: #{e.message}"
+    end
+  end
+
+  # Cursor
+  cursor_file = target_dir + '.cursor' + 'mcp.json'
+  if cursor_file.file?
+    begin
+      data = load_json_file(cursor_file)
+      if data['mcpServers'].is_a?(Hash)
+        to_remove.each { |name| data['mcpServers'].delete(name) }
+        File.write(cursor_file, JSON.pretty_generate(data) + "\n")
+        puts "  #{green('✓')} Updated Cursor config at #{dim(cursor_file.to_s)}"
+      end
+    rescue StandardError => e
+      puts "  #{red('✗')} Failed to update #{cursor_file}: #{e.message}"
+    end
+  end
+
+  # Claude
+  claude_file = target_dir + '.claude' + 'mcp.json'
+  if claude_file.file?
+    begin
+      data = load_json_file(claude_file)
+      if data['mcpServers'].is_a?(Hash)
+        to_remove.each { |name| data['mcpServers'].delete(name) }
+        File.write(claude_file, JSON.pretty_generate(data) + "\n")
+        puts "  #{green('✓')} Updated Claude config at #{dim(claude_file.to_s)}"
+      end
+    rescue StandardError => e
+      puts "  #{red('✗')} Failed to update #{claude_file}: #{e.message}"
+    end
+  end
+
+  puts
+end
+
+# CLI Help System
+def show_main_help
+  puts <<~HELP
+    Usage: mcp-init [OPTIONS] [PRESET_OR_SERVER...]
+           mcp-init <COMMAND> [ARGS...]
+           mcp-init add <items...> [OPTIONS]
+           mcp-init rm <names...> [OPTIONS]
+
+    MCP Workspace Initialization Tool
+
+    Local Workspace Commands:
+      local list                      List active MCP servers in workspace (aliases: ls, status)
+      local add <items...>            Add/merge preset(s) or server(s) into workspace
+      local rm <names...>             Remove server(s) from workspace config (alias: remove)
+      local test [names...]           Test MCP server handshakes in workspace
+
+    Template Registry Commands:
+      template list                   List all available presets & individual servers (aliases: ls)
+      template show <name>            Display JSON template definition
+
+    Auth Commands:
+      auth overleaf [options]         Extract Overleaf session cookie into .env (alias: overleaf-auth)
+
+    Top-Level Shortcuts (Backward Compatible):
+      mcp-init <items...>             Shorthand for: mcp-init local add <items...>
+      mcp-init list / ls              Shorthand for: mcp-init template list
+      mcp-init show <name>            Shorthand for: mcp-init template show <name>
+      mcp-init status                 Shorthand for: mcp-init local list
+      mcp-init test [names...]        Shorthand for: mcp-init local test [names...]
+      mcp-init remove <names...>      Shorthand for: mcp-init local rm <names...>
+      mcp-init overleaf-auth          Shorthand for: mcp-init auth overleaf
+
+    Common Options:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      -n, --dry-run                   Preview changes without modifying files
+      --overwrite, --force            Overwrite MCP entries instead of merging
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init golang-dev             # Add golang-dev preset to workspace
+      mcp-init local add docker       # Add docker server to workspace
+      mcp-init template list          # List all available templates
+      mcp-init local rm gopls         # Remove gopls server from workspace
+  HELP
+end
+
+def show_local_help
+  puts <<~HELP
+    Local Workspace Management Commands:
+      local list [options]            List active MCP servers in workspace (aliases: ls, status)
+      local add <items...> [options]  Add/merge preset(s) or server(s) into workspace
+      local rm <names...> [options]   Remove server(s) from workspace config (alias: remove)
+      local test [names...] [options] Test MCP server handshakes in workspace
+
+    Options for local commands:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      -n, --dry-run                   Preview changes without modifying files
+      --overwrite, --force            Overwrite MCP entries instead of merging
+      --opencode                      Configure OpenCode only
+      --antigravity                   Configure Antigravity CLI only
+      --cursor                        Configure Cursor only
+      --claude                        Configure Claude Code only
+      --vscode                        Configure VS Code only
+      --all                           Configure all supported environments
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init local list
+      mcp-init local add golang-dev docker
+      mcp-init local rm gopls
+      mcp-init local test
+  HELP
+end
+
+def show_local_add_help
+  puts <<~HELP
+    Usage: mcp-init local add <items...> [options]
+           mcp-init add <items...> [options]
+
+    Add/merge preset(s) or server(s) into the target workspace directory.
+
+    Arguments:
+      <items...>                      One or more presets, servers, or file paths to add
+
+    Options:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      --opencode                      Configure OpenCode only
+      --antigravity                   Configure Antigravity CLI only
+      --cursor                        Configure Cursor only
+      --claude                        Configure Claude Code only
+      --vscode                        Configure VS Code only
+      --all                           Configure all supported environments
+      -n, --dry-run                   Preview changes without modifying files
+      --overwrite, --force            Overwrite MCP entries instead of merging
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init local add golang-dev
+      mcp-init add docker context7 --dir ./my-project
+      mcp-init add ./custom-server.json --dry-run
+  HELP
+end
+
+def show_local_rm_help
+  puts <<~HELP
+    Usage: mcp-init local rm <names...> [options]
+           mcp-init local remove <names...> [options]
+           mcp-init rm <names...> [options]
+
+    Remove server(s) from the target workspace configuration.
+
+    Arguments:
+      <names...>                      One or more server names to remove
+
+    Options:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init local rm gopls
+      mcp-init rm docker context7 --dir ./my-project
+  HELP
+end
+
+def show_local_list_help
+  puts <<~HELP
+    Usage: mcp-init local list [options]
+           mcp-init local ls [options]
+           mcp-init status [options]
+
+    List active MCP servers in the target workspace directory.
+
+    Options:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init local list
+      mcp-init status --dir ./my-project
+  HELP
+end
+
+def show_local_test_help
+  puts <<~HELP
+    Usage: mcp-init local test [names...] [options]
+           mcp-init test [names...] [options]
+
+    Test MCP server handshakes in the target workspace.
+
+    Arguments:
+      [names...]                      Optional server names to test (default: all active)
+
+    Options:
+      -d, --dir PATH                  Target workspace directory (default: CWD)
+      --timeout SEC                   Timeout in seconds for testing (default: 6)
+      -v, --verbose                   Enable verbose output
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init local test
+      mcp-init test gopls docker
+  HELP
+end
+
+def show_template_help
+  puts <<~HELP
+    Template Registry Commands:
+      template list                   List all available presets & individual servers (aliases: ls)
+      template show <name>            Display JSON template definition
+
+    Options for template commands:
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init template list
+      mcp-init template show golang-dev
+  HELP
+end
+
+def show_template_list_help
+  puts <<~HELP
+    Usage: mcp-init template list [options]
+           mcp-init template ls [options]
+           mcp-init list [options]
+           mcp-init ls [options]
+
+    List all available presets and individual servers from the template registry.
+
+    Options:
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init template list
+      mcp-init list
+  HELP
+end
+
+def show_template_show_help
+  puts <<~HELP
+    Usage: mcp-init template show <name> [options]
+           mcp-init show <name> [options]
+
+    Display the JSON definition of a preset or server from the template registry.
+
+    Arguments:
+      <name>                          Name of the preset or server to show
+
+    Options:
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init template show golang-dev
+      mcp-init show docker
+  HELP
+end
+
+def show_auth_help
+  puts <<~HELP
+    Auth Commands:
+      auth overleaf [options]         Extract Overleaf session cookie into .env (alias: overleaf-auth)
+
+    Options for auth commands:
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init auth overleaf
+      mcp-init overleaf-auth
+  HELP
+end
+
+def show_auth_overleaf_help
+  puts <<~HELP
+    Usage: mcp-init auth overleaf [options]
+           mcp-init overleaf-auth [options]
+
+    Extract Overleaf session cookie and save to .env in target workspace.
+
+    Options:
+      -d, --dir PATH                  Target workspace directory for .env (default: CWD)
+      -s, --scan                      Scan existing local browser profiles without launching browser
+      -m, --manual                   Enter credentials manually or print browser console helper
+      -b, --browser NAME              Specify browser binary (chrome, chromium, brave, firefox)
+      -h, --help                      Show this help message
+
+    Examples:
+      mcp-init auth overleaf
+      mcp-init overleaf-auth --scan
+  HELP
+end
+
+# Command handlers
+def handle_local_add(args)
+  options = {
+    presets: [],
+    servers: [],
+    files: [],
+    targets: [],
+    target_dir: Dir.pwd,
+    dry_run: false,
+    overwrite: false
+  }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init local add <items...> [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-d', '--dir PATH', 'Target workspace directory (default: CWD)') { |v| options[:target_dir] = v }
+    opts.on('--antigravity', '--agy', '--gemini', 'Configure Antigravity CLI (.agents/plugins/mcp/)') { options[:targets] << :antigravity }
+    opts.on('--opencode', 'Configure OpenCode (opencode.json)') { options[:targets] << :opencode }
+    opts.on('--cursor', 'Configure Cursor (.cursor/mcp.json)') { options[:targets] << :cursor }
+    opts.on('--claude', 'Configure Claude Code (.claude/mcp.json)') { options[:targets] << :claude }
+    opts.on('--vscode', 'Configure VS Code (.vscode/mcp.json)') { options[:targets] << :vscode }
+    opts.on('--all', 'Configure all supported environments') { options[:targets] << :all }
+    opts.on('-n', '--dry-run', 'Preview changes without modifying files') { options[:dry_run] = true }
+    opts.on('--overwrite', '--force', 'Overwrite MCP entries instead of merging') { options[:overwrite] = true }
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init local add --help' for usage."
+    exit 1
+  end
+
+  target_path = Pathname.new(options[:target_dir]).expand_path
+  combined_items = args + options[:presets] + options[:servers] + options[:files]
+
+  if combined_items.empty?
+    warn "#{red('Error:')} No preset or server specified."
+    puts "Run 'mcp-init local add --help' for usage."
+    exit 1
+  end
+
+  servers = load_items(combined_items, target_path.to_s)
+
+  if servers.empty?
+    warn "#{red('Error:')} No server definitions loaded."
+    exit 1
+  end
+
+  # Determine target platforms
+  targets = options[:targets]
+  explicit = !targets.empty?
+
+  do_all         = targets.include?(:all)
+  do_antigravity = do_all || targets.include?(:antigravity) || !explicit
+  do_opencode    = do_all || targets.include?(:opencode) || !explicit
+  do_cursor      = do_all || targets.include?(:cursor)
+  do_claude      = do_all || targets.include?(:claude)
+  do_vscode      = do_all || targets.include?(:vscode)
+
+  puts "\n#{bold('🚀 Initializing MCP Workspace Config')}"
+  puts "  #{dim('Target Directory:')} #{cyan(target_path.to_s)}"
+  puts "  #{dim('Servers:')}          #{green(servers.keys.join(', '))}"
+  if options[:dry_run]
+    puts "  #{yellow('DRY RUN MODE:')}     No files will be modified.\n\n"
+  else
+    puts
+  end
+
+  # Antigravity CLI
+  if do_antigravity
+    begin
+      mcp_file, status, active_srvs = apply_antigravity(
+        target_path, servers, options[:overwrite], options[:dry_run]
+      )
+      puts "  #{green('✓')} [#{bold('Antigravity-CLI')}] #{status}: #{dim(mcp_file.to_s)}"
+      puts "    Active servers: #{cyan(active_srvs.join(', '))}"
+    rescue StandardError => e
+      warn "  #{red('✗')} [#{bold('Antigravity-CLI')}] Failed: #{e.message}"
+    end
+  end
+
+  # OpenCode
+  if do_opencode
+    begin
+      mcp_file, status, active_srvs = apply_opencode(
+        target_path, servers, options[:overwrite], options[:dry_run]
+      )
+      puts "  #{green('✓')} [#{bold('OpenCode')}]        #{status}: #{dim(mcp_file.to_s)}"
+      puts "    Active servers: #{cyan(active_srvs.join(', '))}"
+    rescue StandardError => e
+      warn "  #{red('✗')} [#{bold('OpenCode')}]        Failed: #{e.message}"
+    end
+  end
+
+  # Cursor
+  if do_cursor
+    begin
+      mcp_file, status, active_srvs = apply_standard_dir(
+        target_path, '.cursor', 'mcp.json', servers, options[:overwrite], options[:dry_run]
+      )
+      puts "  #{green('✓')} [#{bold('Cursor')}]          #{status}: #{dim(mcp_file.to_s)}"
+      puts "    Active servers: #{cyan(active_srvs.join(', '))}"
+    rescue StandardError => e
+      warn "  #{red('✗')} [#{bold('Cursor')}]          Failed: #{e.message}"
+    end
+  end
+
+  # Claude Code
+  if do_claude
+    begin
+      mcp_file, status, active_srvs = apply_standard_dir(
+        target_path, '.claude', 'mcp.json', servers, options[:overwrite], options[:dry_run]
+      )
+      puts "  #{green('✓')} [#{bold('Claude Code')}]      #{status}: #{dim(mcp_file.to_s)}"
+      puts "    Active servers: #{cyan(active_srvs.join(', '))}"
+    rescue StandardError => e
+      warn "  #{red('✗')} [#{bold('Claude Code')}]      Failed: #{e.message}"
+    end
+  end
+
+  # VS Code
+  if do_vscode
+    begin
+      mcp_file, status, active_srvs = apply_standard_dir(
+        target_path, '.vscode', 'mcp.json', servers, options[:overwrite], options[:dry_run]
+      )
+      puts "  #{green('✓')} [#{bold('VS Code')}]         #{status}: #{dim(mcp_file.to_s)}"
+      puts "    Active servers: #{cyan(active_srvs.join(', '))}"
+    rescue StandardError => e
+      warn "  #{red('✗')} [#{bold('VS Code')}]         Failed: #{e.message}"
+    end
+  end
+
+  puts "\n#{bold(green('Done!'))} Workspace is ready for both OpenCode and Antigravity-CLI.\n\n"
+end
+
+def handle_local_rm(args)
+  options = {
+    target_dir: Dir.pwd
+  }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init local rm <names...> [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-d', '--dir PATH', 'Target workspace directory (default: CWD)') { |v| options[:target_dir] = v }
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init local rm --help' for usage."
+    exit 1
+  end
+
+  if args.empty?
+    warn "#{red('Error:')} 'rm' requires at least one server name."
+    puts "Run 'mcp-init local rm --help' for usage."
+    exit 1
+  end
+
+  target_path = Pathname.new(options[:target_dir]).expand_path
+  cmd_remove(target_path, args)
+end
+
+def handle_local_list(args)
+  options = {
+    target_dir: Dir.pwd
+  }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init local list [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-d', '--dir PATH', 'Target workspace directory (default: CWD)') { |v| options[:target_dir] = v }
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init local list --help' for usage."
+    exit 1
+  end
+
+  target_path = Pathname.new(options[:target_dir]).expand_path
+  cmd_status(target_path)
+end
+
+def handle_local_test(args)
+  options = {
+    target_dir: Dir.pwd,
+    timeout: 6,
+    verbose: false
+  }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init local test [names...] [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-d', '--dir PATH', 'Target workspace directory (default: CWD)') { |v| options[:target_dir] = v }
+    opts.on('--timeout SEC', Integer, 'Timeout in seconds for testing (default: 6)') { |v| options[:timeout] = v }
+    opts.on('-v', '--verbose', 'Enable verbose output') { options[:verbose] = true }
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init local test --help' for usage."
+    exit 1
+  end
+
+  target_path = Pathname.new(options[:target_dir]).expand_path
+  cmd_test(args, target_path, options[:timeout], options[:verbose])
+end
+
+def handle_template_list(args)
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init template list [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init template list --help' for usage."
+    exit 1
+  end
+
+  cmd_list()
+end
+
+def handle_template_show(args)
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: mcp-init template show <name> [options]"
+    opts.separator ''
+    opts.separator 'Options:'
+    opts.on('-h', '--help', 'Show this help message') { puts opts; exit 0 }
+  end
+
+  begin
+    parser.parse!(args)
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    warn "#{red('Error:')} #{e.message}"
+    warn "Run 'mcp-init template show --help' for usage."
+    exit 1
+  end
+
+  if args.empty?
+    warn "#{red('Error:')} 'show' requires a preset or server name."
+    puts "Run 'mcp-init template show --help' for usage."
+    exit 1
+  end
+
+  cmd_show(args.first)
+end
+
+def handle_auth_overleaf(args)
+  # Delegate to overleaf-auth script
+  exec((TEMPLATE_DIR + 'bin' + 'overleaf-auth').to_s, *args)
+end
+
+# Main CLI Entry Point
+def main
+  # Handle top-level help first
+  if ARGV.include?('--help') || ARGV.include?('-h')
+    if ARGV.length == 1
+      show_main_help
+      exit 0
+    end
+  end
+
+  # Handle overleaf-auth as a special case before parsing
+  if ARGV.first&.downcase == 'overleaf-auth' || ARGV.first&.downcase == 'auth-overleaf'
+    ARGV.shift
+    exec((TEMPLATE_DIR + 'bin' + 'overleaf-auth').to_s, *ARGV)
+  end
+
+  # Parse commands
+  if ARGV.empty?
+    show_main_help
+    exit 0
+  end
+
+  command = ARGV.shift.downcase
+
+  case command
+  when 'local'
+    if ARGV.empty?
+      show_local_help
+      exit 0
+    end
+
+    subcommand = ARGV.shift.downcase
+
+    case subcommand
+    when '--help', '-h'
+      show_local_help
+      exit 0
+    when 'add'
+      handle_local_add(ARGV)
+    when 'rm', 'remove'
+      handle_local_rm(ARGV)
+    when 'list', 'ls'
+      handle_local_list(ARGV)
+    when 'test'
+      handle_local_test(ARGV)
+    else
+      warn "#{red('Error:')} Unknown local subcommand '#{subcommand}'"
+      show_local_help
+      exit 1
+    end
+  when 'template'
+    if ARGV.empty?
+      show_template_help
+      exit 0
+    end
+
+    subcommand = ARGV.shift.downcase
+
+    case subcommand
+    when '--help', '-h'
+      show_template_help
+      exit 0
+    when 'list', 'ls'
+      handle_template_list(ARGV)
+    when 'show'
+      handle_template_show(ARGV)
+    else
+      warn "#{red('Error:')} Unknown template subcommand '#{subcommand}'"
+      show_template_help
+      exit 1
+    end
+  when 'auth'
+    if ARGV.empty?
+      show_auth_help
+      exit 0
+    end
+
+    subcommand = ARGV.shift.downcase
+
+    case subcommand
+    when '--help', '-h'
+      show_auth_help
+      exit 0
+    when 'overleaf'
+      handle_auth_overleaf(ARGV)
+    else
+      warn "#{red('Error:')} Unknown auth subcommand '#{subcommand}'"
+      show_auth_help
+      exit 1
+    end
+  when 'add'
+    # Shorthand for local add
+    ARGV.unshift('add')
+    ARGV.unshift('local')
+    # Re-parse with full command structure
+    command = 'local'
+    subcommand = 'add'
+    ARGV.shift # remove 'add'
+    ARGV.shift # remove 'local'
+    handle_local_add(ARGV)
+  when 'rm', 'remove'
+    # Shorthand for local rm
+    ARGV.unshift(command)
+    ARGV.unshift('local')
+    # Re-parse with full command structure
+    command = 'local'
+    subcommand = command
+    ARGV.shift # remove rm/remove
+    ARGV.shift # remove local
+    handle_local_rm(ARGV)
+  when 'list', 'ls'
+    # Shorthand for template list
+    ARGV.unshift(command)
+    ARGV.unshift('template')
+    # Re-parse with full command structure
+    command = 'template'
+    subcommand = command
+    ARGV.shift # remove list/ls
+    ARGV.shift # remove template
+    handle_template_list(ARGV)
+  when 'show'
+    # Shorthand for template show
+    ARGV.unshift(command)
+    ARGV.unshift('template')
+    # Re-parse with full command structure
+    command = 'template'
+    subcommand = command
+    ARGV.shift # remove show
+    ARGV.shift # remove template
+    handle_template_show(ARGV)
+  when 'status'
+    # Shorthand for local list
+    ARGV.unshift('list')
+    ARGV.unshift('local')
+    # Re-parse with full command structure
+    command = 'local'
+    subcommand = 'list'
+    ARGV.shift # remove list
+    ARGV.shift # remove local
+    handle_local_list(ARGV)
+  when 'test'
+    # Shorthand for local test
+    ARGV.unshift(command)
+    ARGV.unshift('local')
+    # Re-parse with full command structure
+    command = 'local'
+    subcommand = command
+    ARGV.shift # remove test
+    ARGV.shift # remove local
+    handle_local_test(ARGV)
+  else
+    # Backward compatibility: treat as local add
+    ARGV.unshift(command)
+    ARGV.unshift('add')
+    ARGV.unshift('local')
+    # Re-parse with full command structure
+    command = 'local'
+    subcommand = 'add'
+    ARGV.shift # remove add
+    ARGV.shift # remove local
+    ARGV.shift # remove the original command
+    handle_local_add(ARGV)
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME

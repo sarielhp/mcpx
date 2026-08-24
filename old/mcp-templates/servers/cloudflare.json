@@ -1,0 +1,10 @@
+{
+  "cloudflare": {
+    "command": "npx",
+    "args": ["-y", "@thelord/mcp-cloudflare"],
+    "env": {
+      "CLOUDFLARE_API_TOKEN": "${CLOUDFLARE_API_TOKEN}",
+      "CLOUDFLARE_ZONE_ID": "${CLOUDFLARE_ZONE_ID}"
+    }
+  }
+}

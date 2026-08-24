@@ -1,0 +1,9 @@
+{
+  "wolfram-alpha": {
+    "command": "npx",
+    "args": ["-y", "wolfram-mcp"],
+    "env": {
+      "WOLFRAM_APP_ID": "${WOLFRAM_APP_ID}"
+    }
+  }
+}
