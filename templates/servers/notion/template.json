@@ -1,0 +1,39 @@
+{
+  "name": "notion",
+  "description": "Notion workspace and database access",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-notion"
+  ],
+  "env": {
+    "NOTION_API_TOKEN": {
+      "value": "${NOTION_API_TOKEN}",
+      "required": true,
+      "description": "Notion API token"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "notion_search"
+    ]
+  }
+}

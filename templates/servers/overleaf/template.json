@@ -1,0 +1,41 @@
+{
+  "name": "overleaf",
+  "description": "Overleaf LaTeX collaboration",
+  "command": "uvx",
+  "args": [
+    "overleaf-mcp"
+  ],
+  "env": {
+    "OVERLEAF_SESSION_COOKIE": {
+      "value": "${OVERLEAF_SESSION_COOKIE}",
+      "required": true,
+      "description": "Overleaf session cookie"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "uvx",
+      "check": "uvx --version",
+      "install": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "scripts": {
+    "auth": "See old/mcp-templates/bin/overleaf-auth — extract Overleaf session cookie into .env"
+  },
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "overleaf_compile"
+    ]
+  }
+}

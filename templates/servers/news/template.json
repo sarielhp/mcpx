@@ -1,0 +1,39 @@
+{
+  "name": "news",
+  "description": "News headlines and article search",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-news"
+  ],
+  "env": {
+    "NEWS_API_KEY": {
+      "value": "${NEWS_API_KEY}",
+      "required": true,
+      "description": "News API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "news_search"
+    ]
+  }
+}

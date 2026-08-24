@@ -1,0 +1,39 @@
+{
+  "name": "postgres",
+  "description": "PostgreSQL database operations",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-postgres"
+  ],
+  "env": {
+    "DATABASE_URL": {
+      "value": "${DATABASE_URL}",
+      "required": true,
+      "description": "PostgreSQL connection string"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "query"
+    ]
+  }
+}

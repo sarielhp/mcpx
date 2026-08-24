@@ -1,0 +1,39 @@
+{
+  "name": "redis",
+  "description": "Redis cache and data store operations",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-redis"
+  ],
+  "env": {
+    "REDIS_URL": {
+      "value": "${REDIS_URL}",
+      "required": true,
+      "description": "Redis connection string"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "redis_get"
+    ]
+  }
+}

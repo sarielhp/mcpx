@@ -1,0 +1,11 @@
+{
+  "name": "productivity",
+  "description": "Productivity with slack, notion, linear, calendar, email",
+  "servers": [
+    "slack",
+    "notion",
+    "linear",
+    "calendar",
+    "email"
+  ]
+}

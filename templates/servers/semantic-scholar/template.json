@@ -1,0 +1,38 @@
+{
+  "name": "semantic-scholar",
+  "description": "Semantic Scholar academic paper & author search",
+  "command": "uvx",
+  "args": [
+    "s2-mcp-server"
+  ],
+  "env": {
+    "SEMANTIC_SCHOLAR_API_KEY": {
+      "value": "${SEMANTIC_SCHOLAR_API_KEY}",
+      "required": true,
+      "description": "API key from semanticscholar.org"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "uvx",
+      "check": "uvx --version",
+      "install": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "semantic_scholar_search_papers"
+    ]
+  }
+}

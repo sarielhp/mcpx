@@ -1,0 +1,44 @@
+{
+  "name": "spotify",
+  "description": "Spotify playback and library control",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-spotify"
+  ],
+  "env": {
+    "SPOTIFY_CLIENT_ID": {
+      "value": "${SPOTIFY_CLIENT_ID}",
+      "required": true,
+      "description": "Spotify client ID"
+    },
+    "SPOTIFY_CLIENT_SECRET": {
+      "value": "${SPOTIFY_CLIENT_SECRET}",
+      "required": true,
+      "description": "Spotify client secret"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "spotify_search"
+    ]
+  }
+}

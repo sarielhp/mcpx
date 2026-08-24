@@ -1,0 +1,35 @@
+{
+  "name": "fetch",
+  "description": "Fetch and convert web content to markdown",
+  "command": "uvx",
+  "args": [
+    "--with",
+    "mcp<1.2.0",
+    "mcp-server-fetch"
+  ],
+  "env": {
+  },
+  "prerequisites": [
+    {
+      "binary": "uvx",
+      "check": "uvx --version",
+      "install": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "fetch_fetch"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "email",
+  "description": "Email sending and inbox management",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-email"
+  ],
+  "env": {
+    "EMAIL_API_KEY": {
+      "value": "${EMAIL_API_KEY}",
+      "required": true,
+      "description": "Email API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "email_send"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "web-dev",
+  "description": "Web development with fetch, search, context7, github",
+  "servers": [
+    "fetch",
+    "search",
+    "context7",
+    "github",
+    "git"
+  ]
+}

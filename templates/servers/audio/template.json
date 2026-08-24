@@ -1,0 +1,39 @@
+{
+  "name": "audio",
+  "description": "Audio transcription and processing",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-audio"
+  ],
+  "env": {
+    "AUDIO_API_KEY": {
+      "value": "${AUDIO_API_KEY}",
+      "required": true,
+      "description": "Audio API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "transcribe_audio"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "search",
+  "description": "Web search across multiple engines",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-search"
+  ],
+  "env": {
+    "SEARCH_API_KEY": {
+      "value": "${SEARCH_API_KEY}",
+      "required": true,
+      "description": "Search API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "search_web"
+    ]
+  }
+}

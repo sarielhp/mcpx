@@ -1,0 +1,39 @@
+{
+  "name": "figma",
+  "description": "Figma design file access",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-figma"
+  ],
+  "env": {
+    "FIGMA_ACCESS_TOKEN": {
+      "value": "${FIGMA_ACCESS_TOKEN}",
+      "required": true,
+      "description": "Figma access token"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "figma_get_file"
+    ]
+  }
+}

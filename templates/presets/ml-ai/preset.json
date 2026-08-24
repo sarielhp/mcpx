@@ -1,0 +1,10 @@
+{
+  "name": "ml-ai",
+  "description": "ML/AI development with image-gen, audio, context7",
+  "servers": [
+    "image-gen",
+    "audio",
+    "context7",
+    "fetch"
+  ]
+}

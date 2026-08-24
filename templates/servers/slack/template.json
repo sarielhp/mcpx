@@ -1,0 +1,39 @@
+{
+  "name": "slack",
+  "description": "Slack workspace messaging",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-slack"
+  ],
+  "env": {
+    "SLACK_BOT_TOKEN": {
+      "value": "${SLACK_BOT_TOKEN}",
+      "required": true,
+      "description": "Slack bot token"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "slack_post_message"
+    ]
+  }
+}

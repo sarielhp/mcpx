@@ -1,0 +1,12 @@
+{
+  "name": "golang-dev",
+  "description": "Go development environment with gopls, context7, docker, etc.",
+  "servers": [
+    "gopls",
+    "context7",
+    "docker",
+    "fetch",
+    "github",
+    "git"
+  ]
+}

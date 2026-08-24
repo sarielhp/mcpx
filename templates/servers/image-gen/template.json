@@ -1,0 +1,39 @@
+{
+  "name": "image-gen",
+  "description": "AI image generation",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-image-gen"
+  ],
+  "env": {
+    "IMAGE_GEN_API_KEY": {
+      "value": "${IMAGE_GEN_API_KEY}",
+      "required": true,
+      "description": "Image generation API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "generate_image"
+    ]
+  }
+}

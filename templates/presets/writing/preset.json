@@ -1,0 +1,10 @@
+{
+  "name": "writing",
+  "description": "Writing with translate, search, notion, overleaf",
+  "servers": [
+    "translate",
+    "search",
+    "notion",
+    "overleaf"
+  ]
+}

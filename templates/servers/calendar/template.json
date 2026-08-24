@@ -1,0 +1,39 @@
+{
+  "name": "calendar",
+  "description": "Calendar and scheduling",
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-calendar"
+  ],
+  "env": {
+    "CALENDAR_API_KEY": {
+      "value": "${CALENDAR_API_KEY}",
+      "required": true,
+      "description": "Calendar API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "calendar_list_events"
+    ]
+  }
+}

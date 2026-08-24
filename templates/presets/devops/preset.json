@@ -1,0 +1,10 @@
+{
+  "name": "devops",
+  "description": "DevOps with docker, git, github, fetch",
+  "servers": [
+    "docker",
+    "git",
+    "github",
+    "fetch"
+  ]
+}

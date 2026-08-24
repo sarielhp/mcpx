@@ -1,0 +1,34 @@
+{
+  "name": "context7",
+  "description": "Up-to-date library documentation lookup",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@upstash/context7-mcp"
+  ],
+  "env": {
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "context7_query-docs"
+    ]
+  }
+}

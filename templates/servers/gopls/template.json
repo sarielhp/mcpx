@@ -1,0 +1,33 @@
+{
+  "name": "gopls",
+  "description": "Go language server for code intelligence",
+  "command": "gopls",
+  "args": [
+    "mcp"
+  ],
+  "env": {
+  },
+  "prerequisites": [
+    {
+      "binary": "gopls",
+      "check": "gopls --version",
+      "install": "go install -g go.lsp.dev/gopls"
+    }
+  ],
+  "recommends": [
+    "context7"
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "gopls_go_workspace"
+    ]
+  }
+}

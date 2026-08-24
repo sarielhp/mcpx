@@ -1,0 +1,39 @@
+{
+  "name": "linear",
+  "description": "Linear issue tracking",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-linear"
+  ],
+  "env": {
+    "LINEAR_API_KEY": {
+      "value": "${LINEAR_API_KEY}",
+      "required": true,
+      "description": "Linear API key"
+    }
+  },
+  "prerequisites": [
+    {
+      "binary": "npx",
+      "check": "npx --version",
+      "install": "npm install -g npx"
+    }
+  ],
+  "recommends": [
+
+  ],
+  "alternatives": [
+
+  ],
+  "requires": [
+
+  ],
+  "healthCheck": {
+    "type": "stdio",
+    "timeout": "5s",
+    "expectTools": [
+      "linear_get_issues"
+    ]
+  }
+}

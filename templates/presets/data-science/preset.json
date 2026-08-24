@@ -1,0 +1,10 @@
+{
+  "name": "data-science",
+  "description": "Data science with postgres, redis, semantic-scholar",
+  "servers": [
+    "postgres",
+    "redis",
+    "semantic-scholar",
+    "fetch"
+  ]
+}
