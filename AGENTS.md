@@ -127,6 +127,23 @@ Flags: `--command CMD`, `--args "S"` (repeatable), `--arg A` (repeatable),
 `--cmd "LINE"`, `--timeout SEC` (default 6), `--verbose`, `--json`,
 `--expect-tools LIST`.
 
+### Git workflow
+
+**`tools/snapshot.rb`** — Stage, commit, and push the working tree in one step.
+Runs `git add -A`, creates a commit (from `--message` or an auto-generated
+summary of the changed paths), and pushes to the branch's upstream. Exit 0 on
+success, including a clean tree (benign no-op).
+
+```bash
+ruby tools/snapshot.rb                           # auto-message + push
+ruby tools/snapshot.rb "fix: update writers"     # explicit message
+ruby tools/snapshot.rb --no-push                 # commit only
+ruby tools/snapshot.rb --dry-run --verbose       # preview intent
+```
+
+Flags: `-m/--message MSG` (positional arg also accepted), `--no-push`,
+`--dry-run`, `--verbose`.
+
 ## Conventions
 
 - **Scripting**: use Ruby for all scripts; never shell/awk/sed one-liners or
