@@ -49,7 +49,7 @@ func applyShorthands(args []string) []string {
 		return []string{"list"}
 	case "remove":
 		return append([]string{"rm"}, args[1:]...)
-	case "help", "--help", "-h":
+	case "help", "--help", "-h", "--version", "-v", "version":
 		return args
 	default:
 		if !isKnownCommand(first) {
@@ -76,7 +76,7 @@ func buildApp() *clihelp.App {
 	app := &clihelp.App{
 		Name:        "mcpx",
 		Description: "MCPX - Manage MCP servers and presets",
-		Version:     "1.0.0",
+		Version:     "0.1.1",
 		GlobalNote:  "Run 'mcpx <command> --help' for command-specific options.",
 		Commands: []clihelp.Command{
 			{
