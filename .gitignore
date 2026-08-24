@@ -6,6 +6,9 @@
 *.so
 *.dylib
 
+# Tooling
+.agents/
+
 # Environment files
 .env
 .env.local

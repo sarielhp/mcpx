@@ -250,7 +250,7 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 		return nil
 	}
 
-	writeTargets(servers, dir, overwrite, opencode, antigravity, cursor, claude, vscode, all)
+	writeTargets(servers, dir, overwrite, all, opencode, antigravity, cursor, claude, vscode)
 	fmt.Printf("Added %d server(s) to %s\n", len(servers), dir)
 
 	for _, s := range servers {
