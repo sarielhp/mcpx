@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
-# mcpxprobe.rb — Standalone JSON-RPC handshake probe for MCP servers.
+# mcpxprobe — Standalone JSON-RPC handshake probe for MCP servers.
 #
 # Spawns a server command, sends a JSON-RPC initialize request over stdin, and
 # reads the response from stdout with a timeout — mirroring the Go runner's
 # handshake logic so you can debug server startup/wiring without rebuilding Go.
 #
 # Usage:
-#   mcpxprobe.rb --command npx --args '-y @upstash/context7-mcp'
-#   mcpxprobe.rb --cmd "npx -y @upstash/context7-mcp"    # single-string form
-#   mcpxprobe.rb --command gopls --args mcp
-#   mcpxprobe.rb --timeout 8 --verbose
-#   mcpxprobe.rb --command server --expect-tools initialize
+#   mcpxprobe --command npx --args '-y @upstash/context7-mcp'
+#   mcpxprobe --cmd "npx -y @upstash/context7-mcp"    # single-string form
+#   mcpxprobe --command gopls --args mcp
+#   mcpxprobe --timeout 8 --verbose
+#   mcpxprobe --command server --expect-tools initialize
 #
 # Flags:
 #   --command CMD    Executable to spawn
@@ -181,7 +181,7 @@ def main(argv)
     args = opts[:args]
   end
   unless command
-    warn 'mcpxprobe.rb: --command (or --cmd) required (see --help)'
+    warn 'mcpxprobe: --command (or --cmd) required (see --help)'
     return 2
   end
 
@@ -191,7 +191,7 @@ def main(argv)
   begin
     probe(command, args, opts[:timeout], opts[:verbose])
   rescue StandardError => e
-    warn "mcpxprobe.rb: error: #{e.message}"
+    warn "mcpxprobe: error: #{e.message}"
     1
   end
 end

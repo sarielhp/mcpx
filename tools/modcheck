@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
-# modcheck.rb — Verify Go module dependencies against the local module cache.
+# modcheck — Verify Go module dependencies against the local module cache.
 #
 # Reads go.mod, parses `require` directives, and checks that each dependency is
 # actually present in GOMODCACHE at the required version. Catches dependency
 # drift / missing modules before compile time.
 #
 # Usage:
-#   modcheck.rb                     # check deps in ./go.mod
-#   modcheck.rb --file /path/go.mod
-#   modcheck.rb --dry-run           # show what `go mod tidy` would change
-#   modcheck.rb --fix               # run `go mod tidy`
-#   modcheck.rb --json              # JSON results
+#   modcheck                     # check deps in ./go.mod
+#   modcheck --file /path/go.mod
+#   modcheck --dry-run           # show what `go mod tidy` would change
+#   modcheck --fix               # run `go mod tidy`
+#   modcheck --json              # JSON results
 #
 # Exit 0 when all deps resolve; 1 when any are missing/mismatched.
 
@@ -73,7 +73,7 @@ end
 
 def check_deps(file, json)
   unless File.file?(file)
-    warn "modcheck.rb: no such go.mod: #{file}"
+    warn "modcheck: no such go.mod: #{file}"
     return 2
   end
   deps = parse_go_mod(file)

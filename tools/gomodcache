@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
-# gomodcache.rb — Resolve installed Go module versions and inspect their API.
+# gomodcache — Resolve installed Go module versions and inspect their API.
 #
 # Ends the "which copy of the module is the real official one installed on this
 # machine" confusion by operating on the actual GOMODCACHE (the location `go`
 # resolves dependencies from), NOT stray mirrors like ~/.sandbox.
 #
 # Usage:
-#   gomodcache.rb clihelp                     # list cached versions
-#   gomodcache.rb clihelp --latest            # show latest cached version
-#   gomodcache.rb clihelp --api v0.2.14       # dump exported API of one version
-#   gomodcache.rb clihelp --api v0.2.14 --name Execute --methods
-#   gomodcache.rb --root                       # show resolved GOMODCACHE path
+#   gomodcache clihelp                     # list cached versions
+#   gomodcache clihelp --latest            # show latest cached version
+#   gomodcache clihelp --api v0.2.14       # dump exported API of one version
+#   gomodcache clihelp --api v0.2.14 --name Execute --methods
+#   gomodcache --root                       # show resolved GOMODCACHE path
 #
 # Flags:
 #   --root         Print the resolved GOMODCACHE path and exit
@@ -65,10 +65,10 @@ def print_api(root, version, module_name, opts)
   dirs = cached_module_dirs(root, module_name)
   dir = dirs.find { |d| version_of(d) == version } || dirs.find { |d| version_of(d).to_s.start_with?(version) }
   unless dir
-    warn "gomodcache.rb: version #{version} of #{module_name} not cached"
+    warn "gomodcache: version #{version} of #{module_name} not cached"
     return 1
   end
-  api_script = File.expand_path('goapi.rb', __dir__)
+  api_script = File.expand_path('goapi', __dir__)
   cmd = [api_script, '--path', dir]
   cmd << '--funcs' if opts[:funcs]
   cmd << '--types' if opts[:types]
@@ -105,13 +105,13 @@ def main(argv)
   end
 
   unless module_name
-    warn 'gomodcache.rb: module name required (see --help)'
+    warn 'gomodcache: module name required (see --help)'
     return 2
   end
 
   versions = sort_versions(cached_module_dirs(root, module_name))
   if versions.empty?
-    warn "gomodcache.rb: no cached versions of #{module_name} in #{root}"
+    warn "gomodcache: no cached versions of #{module_name} in #{root}"
     return 1
   end
 

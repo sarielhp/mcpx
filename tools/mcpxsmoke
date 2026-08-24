@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# mcpxsmoke.rb — Regression smoke test for the mcpx CLI.
+# mcpxsmoke — Regression smoke test for the mcpx CLI.
 #
 # Builds mcpx and runs a table of isolated scenarios against scratch
 # workspaces, checking exit codes and expected substrings in stdout/stderr and
@@ -7,11 +7,11 @@
 # show/test/auth/template commands and the shorthand rewrites.
 #
 # Usage:
-#   mcpxsmoke.rb                        # build + run full smoke suite
-#   mcpxsmoke.rb --bin /path/to/mcpx    # use a prebuilt binary (skips build)
-#   mcpxsmoke.rb --select template,list # run only matching tests
-#   mcpxsmoke.rb --verbose
-#   mcpxsmoke.rb --fail-quick           # stop at first failure
+#   mcpxsmoke                        # build + run full smoke suite
+#   mcpxsmoke --bin /path/to/mcpx    # use a prebuilt binary (skips build)
+#   mcpxsmoke --select template,list # run only matching tests
+#   mcpxsmoke --verbose
+#   mcpxsmoke --fail-quick           # stop at first failure
 #
 # Exit 0 when all pass; 1 when any assertion fails; 2 on usage/build error.
 
@@ -142,7 +142,7 @@ def build_binary(root)
   bin = File.join(root, 'mcpx')
   _, err, st = Open3.capture3('go', 'build', '-o', bin, '.')
   unless st.success?
-    warn "mcpxsmoke.rb: build failed:\n#{err}"
+    warn "mcpxsmoke: build failed:\n#{err}"
     return nil
   end
   bin
@@ -165,7 +165,7 @@ def main(argv)
   selected = opts[:select] ? opts[:select].split(',') : nil
   suite = selected ? TESTS.select { |t| t[:name] =~ /#{selected.map { |s| Regexp.escape(s) }.join('|')}/ } : TESTS
   if suite.empty?
-    warn "mcpxsmoke.rb: no tests matched --select #{opts[:select]}"
+    warn "mcpxsmoke: no tests matched --select #{opts[:select]}"
     return 2
   end
 

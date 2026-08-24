@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
-# snapshot.rb — Stage, commit, and push the working tree in one step.
+# snapshot — Stage, commit, and push the working tree in one step.
 #
 # Runs `git add -A`, creates a commit (from --message or an auto-generated
 # summary of staged changes), and pushes to the current branch's remote.
 #
 # Usage:
-#   snapshot.rb                           # auto-message + push
-#   snapshot.rb "fix: update config writers"
-#   snapshot.rb --message "feat: add X"
-#   snapshot.rb --no-push                 # commit only, do not push
-#   snapshot.rb --dry-run                 # show what would be done
-#   snapshot.rb --verbose
+#   snapshot                           # auto-message + push
+#   snapshot "fix: update config writers"
+#   snapshot --message "feat: add X"
+#   snapshot --no-push                 # commit only, do not push
+#   snapshot --dry-run                 # show what would be done
+#   snapshot --verbose
 #
 # Flags:
 #   -m, --message MSG   Commit message (positional arg also accepted)

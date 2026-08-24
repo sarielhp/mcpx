@@ -1,15 +1,15 @@
 #!/usr/bin/env ruby
-# goapi.rb — Explore the exported API surface of Go packages (stdlib or module cache).
+# goapi — Explore the exported API surface of Go packages (stdlib or module cache).
 #
 # Use when you need the exact signature of a function, type, or method in a
 # specific Go version / installed module WITHOUT writing throwaway probe
 # programs. Parses .go source files directly.
 #
 # Usage:
-#   goapi.rb --path /usr/lib/go-1.26/src/io --name Write
-#   goapi.rb --path ~/.go/pkg/mod/github.com/sarielhp/clihelp@v0.2.14 --methods
-#   goapi.rb --path /usr/lib/go-1.26/src/strings --name Sort
-#   goapi.rb --stdlib --name Exists
+#   goapi --path /usr/lib/go-1.26/src/io --name Write
+#   goapi --path ~/.go/pkg/mod/github.com/sarielhp/clihelp@v0.2.14 --methods
+#   goapi --path /usr/lib/go-1.26/src/strings --name Sort
+#   goapi --stdlib --name Exists
 #
 # Flags:
 #   --path DIR     Directory tree to scan (repeatable)
@@ -95,7 +95,7 @@ def main(argv)
   parser.parse!(argv)
 
   if opts[:paths].empty?
-    warn 'goapi.rb: no --path/--stdlib given (see --help)'
+    warn 'goapi: no --path/--stdlib given (see --help)'
     return 2
   end
 

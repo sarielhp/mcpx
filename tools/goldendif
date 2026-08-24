@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# goldendif.rb — Golden-file diff for the mcpx config writers.
+# goldendif — Golden-file diff for the mcpx config writers.
 #
 # Generates the three config files (opencode.json, antigravity.json, mcp.json)
 # for a server via `mcpx add <server> --all`, then compares them against
@@ -7,13 +7,13 @@
 # regressions in the config writer output (not just key presence).
 #
 # Usage:
-#   goldendif.rb                            # check all servers against golden files
-#   goldendif.rb --server gopls             # check a single server
-#   goldendif.rb --update                   # (re)write golden files from current output
-#   goldendif.rb --update --server gopls    # regenerate one server
-#   goldendif.rb --pretty                   # compare pretty-printed form (order-insensitive)
-#   goldendif.rb --verbose
-#   goldendif.rb --no-build                 # use existing bin at --bin
+#   goldendif                            # check all servers against golden files
+#   goldendif --server gopls             # check a single server
+#   goldendif --update                   # (re)write golden files from current output
+#   goldendif --update --server gopls    # regenerate one server
+#   goldendif --pretty                   # compare pretty-printed form (order-insensitive)
+#   goldendif --verbose
+#   goldendif --no-build                 # use existing bin at --bin
 #
 # Flags:
 #   --server NAME   Only check/update this server
