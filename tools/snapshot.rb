@@ -50,9 +50,15 @@ def current_branch
   out.empty? ? nil : out
 end
 
-def generate_message
-  out, _err, st = run_git('diff', '--cached', '--name-only')
-  return 'chore: snapshot' unless st == 0 || out.empty?
+def generate_message(staged: true)
+  if staged
+    out, _err, st = run_git('diff', '--cached', '--name-only')
+  else
+    out, _err, st = run_git('status', '--porcelain')
+    # Strip status codes: " M file.go" / "?? new.txt" -> file.go / new.txt
+    out = out.lines.map { |l| l.sub(/\A[^ ]+\s+/, '') }.join
+  end
+  return 'chore: snapshot' unless st == 0 || out.strip.empty?
 
   paths = out.lines.map(&:strip).reject(&:empty?)
   return 'chore: snapshot' if paths.empty?
@@ -103,7 +109,7 @@ def main(argv)
     end
   end
 
-  message = opts[:message] || generate_message
+  message = opts[:message] || generate_message(staged: !opts[:dry_run])
   if message.empty?
     warn 'snapshot: empty commit message'
     return 1
