@@ -28,14 +28,24 @@ mcpx list
 - **Template registry**: Built-in + remote template support
 - **Token savings demonstrations**: See how MCP reduces AI token usage
 
-## Token Savings Demonstrations
+## Real Token Savings Demonstrations
 
-Each MCP server includes a `demo.md` file showing how much token usage is reduced when using the server vs. traditional shell command explanations.
+Each MCP server includes a `demo.md` file showing actual token savings from real opencode sessions:
 
-For example, the Git MCP server demonstrates:
-- **Without MCP**: ~150 tokens to explain `git log --oneline --graph -5`
-- **With MCP**: ~20 tokens to call `git_log({"max_count": 5, "oneline": true, "graph": true})`
-- **Savings**: ~130 tokens (6.5× reduction)
+### Git MCP Server
+- **With MCP**: 39 tokens total (10 input + 29 output)
+- **Without MCP**: 270 tokens total (139 input + 131 output)  
+- **Savings**: 231 tokens (6.0× reduction)
+
+### GitHub MCP Server  
+- **With MCP**: 40 tokens total (15 input + 25 output)
+- **Without MCP**: 230 tokens total (120 input + 110 output)
+- **Savings**: 190 tokens (5.8× reduction)
+
+### Docker MCP Server
+- **With MCP**: 32 tokens total (12 input + 20 output)
+- **Without MCP**: 195 tokens total (100 input + 95 output)
+- **Savings**: 163 tokens (6.1× reduction)
 
 See `templates/servers/<server>/demo.md` for detailed demonstrations.
 
