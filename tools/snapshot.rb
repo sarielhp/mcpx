@@ -18,8 +18,8 @@
 #   --dry-run           Print intent without running git mutating commands
 #   --verbose           Print each git command as it runs
 #
-# Exit 0 on success; 1 if there is nothing to commit, push fails, or the tree
-# is not inside a git repository.
+# Exit 0 on success (including when there is nothing to commit); 1 when the
+# commit or push fails, or the tree is not inside a git repository.
 
 require 'optparse'
 require 'open3'
@@ -89,7 +89,7 @@ def main(argv)
 
   unless dirty?
     puts 'snapshot: nothing to commit'
-    return 1
+    return 0
   end
 
   if opts[:dry_run]
