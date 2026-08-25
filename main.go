@@ -83,11 +83,12 @@ func buildApp() *clihelp.App {
 	var withRecommended bool
 	var verbose bool
 	var timeout int
+	var preset string
 
 	app := &clihelp.App{
 		Name:        "mcpx",
 		Description: "MCPX - Manage MCP servers and presets",
-		Version:     "0.2.0",
+		Version:     "0.2.2",
 		GlobalNote:  "Run 'mcpx <command> --help' for command-specific options.",
 		Commands: []clihelp.Command{
 			{
@@ -128,11 +129,19 @@ func buildApp() *clihelp.App {
 				Run:         func(ctx *clihelp.Context) error { return cmdList(dir) },
 			},
 			{
-				Name:        "show",
-				Description: "Show template definition",
-				UsageLine:   "mcpx show <name>",
-				Args:        clihelp.ExactArgs(1),
-				Run:         func(ctx *clihelp.Context) error { return cmdShow(ctx.Args[0]) },
+				Name:        "init",
+				Description: "Initialize a new workspace with a preset",
+				UsageLine:   "mcpx init [--preset NAME] [--dir DIR] [options]",
+				Args:        clihelp.NoArgs,
+				Options: []clihelp.Option{
+					clihelp.String(&preset, "--preset PRESET", "golang-dev", "Preset to initialize with"),
+					clihelp.String(&dir, "--dir DIR", ".", "Target directory"),
+					clihelp.Bool(&overwrite, "--overwrite", false, "Overwrite existing configs"),
+					clihelp.Bool(&all, "--all", false, "Write all supported config formats"),
+				},
+				Run: func(ctx *clihelp.Context) error {
+					return cmdInit(preset, dir, overwrite, all)
+				},
 			},
 			{
 				Name:        "test",
@@ -226,7 +235,7 @@ func buildApp() *clihelp.App {
 
 func isKnownCommand(s string) bool {
 	switch s {
-	case "add", "rm", "list", "show", "test", "update", "auth", "template":
+	case "add", "rm", "list", "show", "test", "update", "auth", "template", "init":
 		return true
 	default:
 		return false
@@ -268,7 +277,9 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 		return nil
 	}
 
-	writeTargets(servers, dir, overwrite, all, opencode, antigravity, cursor, claude, vscode)
+	if err := writeTargets(servers, dir, overwrite, all, opencode, antigravity, cursor, claude, vscode); err != nil {
+		return fmt.Errorf("failed to write targets: %w", err)
+	}
 	fmt.Printf("Added %d server(s) to %s\n", len(servers), dir)
 
 	for _, s := range servers {
@@ -285,17 +296,24 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 	return nil
 }
 
-func writeTargets(servers []*types.Server, dir string, overwrite, all, opencode, antigravity, cursor, claude, vscode bool) {
+func writeTargets(servers []*types.Server, dir string, overwrite, all, opencode, antigravity, cursor, claude, vscode bool) error {
 	vault := envvault.NewVault(dir)
 	if all || opencode {
-		config.NewOpenCodeWriter(dir, overwrite).Write(servers, vault)
+		if err := config.NewOpenCodeWriter(dir, overwrite).Write(servers, vault); err != nil {
+			return err
+		}
 	}
 	if all || antigravity {
-		config.NewAntigravityWriter(dir, overwrite).Write(servers, vault)
+		if err := config.NewAntigravityWriter(dir, overwrite).Write(servers, vault); err != nil {
+			return err
+		}
 	}
 	if all || cursor || claude || vscode {
-		config.NewStandardWriter(dir, overwrite).Write(servers, vault)
+		if err := config.NewStandardWriter(dir, overwrite).Write(servers, vault); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func cmdRm(names []string, dir string) error {
@@ -318,7 +336,9 @@ func cmdRm(names []string, dir string) error {
 	}
 	if changed {
 		root["mcp"] = mcpObj
-		config.WriteJSON(file, root)
+		if err := config.WriteJSON(file, root); err != nil {
+			return fmt.Errorf("failed to write config file %s: %w", file, err)
+		}
 	}
 	return nil
 }
@@ -466,6 +486,53 @@ func cmdTemplateUpdate() error {
 		return err
 	}
 	fmt.Printf("Updated %d template(s) in %s\n", n, cacheDir())
+	return nil
+}
+
+func cmdInit(presetName, dir string, overwrite, all bool) error {
+	// Check if preset exists
+	preset, err := registry.GetPreset(presetName)
+	if err != nil {
+		return fmt.Errorf("preset %q not found: %v", presetName, err)
+	}
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	// Resolve preset servers
+	servers := make([]*types.Server, 0)
+	for _, serverName := range preset.Servers {
+		server, err := registry.GetServer(serverName)
+		if err != nil {
+			return fmt.Errorf("server %q in preset %q not found: %v", serverName, presetName, err)
+		}
+		servers = append(servers, server)
+	}
+
+	// Write config files
+	if err := writeTargets(servers, dir, overwrite, all, true, true, false, false, false); err != nil {
+		return fmt.Errorf("failed to write targets: %w", err)
+	}
+
+	fmt.Printf("✓ Created workspace at %s\n", dir)
+	fmt.Printf("✓ Added %d server(s) from preset %s\n", len(servers), presetName)
+
+	// Check if it's a git repo and add .gitignore
+	if _, err := os.Stat(path.Join(dir, ".git")); err == nil {
+		// It's a git repo, add .gitignore
+		gitignorePath := path.Join(dir, ".gitignore")
+		gitignoreContent := ".env\n"
+		if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+			if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to create .gitignore: %v\n", err)
+			} else {
+				fmt.Printf("✓ Added .gitignore\n")
+			}
+		}
+	}
+
 	return nil
 }
 

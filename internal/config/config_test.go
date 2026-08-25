@@ -104,10 +104,10 @@ func TestAntigravityWriter(t *testing.T) {
 	if !strings.Contains(contentStr, `"test-server"`) {
 		t.Errorf("Expected server in output, got: %s", contentStr)
 	}
-	if !strings.Contains(contentStr, `"command": "echo"`) {
+	if !strings.Contains(contentStr, `"command":"echo"`) {
 		t.Errorf("Expected command 'echo' in output, got: %s", contentStr)
 	}
-	if !strings.Contains(contentStr, `"args": ["hello"]`) {
+	if !strings.Contains(contentStr, `"args":["hello"]`) {
 		t.Errorf("Expected args ['hello'] in output, got: %s", contentStr)
 	}
 }
@@ -153,7 +153,7 @@ func TestStandardWriter(t *testing.T) {
 	if !strings.Contains(contentStr, `"test-server"`) {
 		t.Errorf("Expected server in output, got: %s", contentStr)
 	}
-	if !strings.Contains(contentStr, `"command": "echo"`) {
+	if !strings.Contains(contentStr, `"command":"echo"`) {
 		t.Errorf("Expected command 'echo' in output, got: %s", contentStr)
 	}
 }

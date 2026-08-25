@@ -57,16 +57,97 @@ go install github.com/sarielhp/mcpx@latest
 
 ## Commands
 
-- `mcpx init` - Initialize workspace with preset
-- `mcpx add` - Add servers/presets to workspace
-- `mcpx rm` - Remove servers from workspace
-- `mcpx list` - List configured servers
-- `mcpx show` - Show template definition
-- `mcpx test` - Test server handshakes (parallel)
-- `mcpx update` - Update configs with latest credentials
-- `mcpx auth` - Manage environment variables
-- `mcpx template` - Manage templates
-- `mcpx repos` - List project repositories
+### `mcpx init`
+Initialize a new workspace with a preset. Usage:
+```bash
+mcpx init [--preset NAME] [--dir DIR] [options]
+```
+Options:
+- `--preset PRESET` - Preset to initialize with (default: "golang-dev")
+- `--dir DIR` - Target directory (default: ".")
+- `--overwrite` - Overwrite existing config files
+- `--all` - Write all supported config formats
+
+### `mcpx add`
+Add servers/presets to workspace. Usage:
+```bash
+mcpx add <items...> [options]
+```
+Options:
+- `--dir DIR` - Target directory (default: ".")
+- `--dry-run` - Show what would be done without writing
+- `--overwrite` - Overwrite existing config entries
+- `--opencode` - Write OpenCode config
+- `--antigravity` - Write Antigravity config
+- `--cursor` - Write Cursor config
+- `--claude` - Write Claude config
+- `--vscode` - Write VS Code config
+- `--all` - Write all supported config formats
+- `--with-recommended` - Auto-install recommended companions
+
+### `mcpx rm`
+Remove servers from workspace. Usage:
+```bash
+mcpx rm <names...> [options]
+```
+Options:
+- `--dir DIR` - Target directory (default: ".")
+
+### `mcpx list`
+List active servers in workspace. Usage:
+```bash
+mcpx list [options]
+```
+Options:
+- `--dir DIR` - Target directory (default: ".")
+
+### `mcpx show`
+Show template definition. Usage:
+```bash
+mcpx show <name>
+```
+
+### `mcpx test`
+Test server handshakes (parallel). Usage:
+```bash
+mcpx test [names...] [options]
+```
+Options:
+- `--dir DIR` - Target directory (default: ".")
+- `--timeout SEC` - Per-server timeout in seconds (default: 6)
+- `--verbose` - Show detailed output
+
+### `mcpx update`
+Update configs with latest credentials. Usage:
+```bash
+mcpx update [names...] [options]
+```
+Options:
+- `--dir DIR` - Target directory (default: ".")
+
+### `mcpx auth`
+Manage environment variables. Usage:
+```bash
+mcpx auth <subcommand>
+```
+Subcommands:
+- `mcpx auth set <var> [value]` - Set env var
+- `mcpx auth get <var>` - Get env var value
+- `mcpx auth list [options]` - List all env vars
+- `mcpx auth rm <var>` - Remove env var
+
+Options:
+- `--dir DIR` - Target directory (default: ".")
+
+### `mcpx template`
+Manage templates. Usage:
+```bash
+mcpx template <subcommand>
+```
+Subcommands:
+- `mcpx template list` - List available templates
+- `mcpx template show <name>` - Show template definition
+- `mcpx template update` - Refresh local template cache from the remote repo
 
 ## License
 
