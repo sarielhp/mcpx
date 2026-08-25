@@ -1,9 +1,0 @@
-{
-  "semantic-scholar": {
-    "command": "uvx",
-    "args": ["s2-mcp-server"],
-    "env": {
-      "SEMANTIC_SCHOLAR_API_KEY": "${SEMANTIC_SCHOLAR_API_KEY}"
-    }
-  }
-}

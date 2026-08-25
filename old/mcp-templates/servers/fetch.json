@@ -1,6 +1,0 @@
-{
-  "fetch": {
-    "command": "uvx",
-    "args": ["--with", "mcp<1.2.0", "mcp-server-fetch"]
-  }
-}

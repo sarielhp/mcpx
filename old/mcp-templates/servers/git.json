@@ -1,6 +1,0 @@
-{
-  "git": {
-    "command": "npx",
-    "args": ["-y", "mcp-git"]
-  }
-}

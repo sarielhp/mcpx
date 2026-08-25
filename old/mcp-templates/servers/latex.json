@@ -1,6 +1,0 @@
-{
-  "latex": {
-    "command": "uvx",
-    "args": ["texflow-mcp"]
-  }
-}

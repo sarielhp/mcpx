@@ -1,6 +1,0 @@
-{
-  "sqlite": {
-    "command": "npx",
-    "args": ["-y", "mcp-sqlite", "{{PROJECT_ROOT}}/data.db"]
-  }
-}

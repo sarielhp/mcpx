@@ -1,6 +1,0 @@
-{
-  "sympy": {
-    "command": "uvx",
-    "args": ["mcp-sympy"]
-  }
-}
