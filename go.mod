@@ -2,7 +2,7 @@ module github.com/sarielhp/mcpx
 
 go 1.26.5
 
-require github.com/sarielhp/clihelp v0.2.19
+require github.com/sarielhp/clihelp v0.2.20
 
 require (
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect

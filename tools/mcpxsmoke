@@ -140,6 +140,16 @@ TESTS = [
     name: 'auth-get-unset',
     steps: [{ args: %w[auth get NEVER_SET_VAR],
               expect: [{ file: :stdout, include: ['(unset)'] }] }]
+  },
+  {
+    name: 'help-tree',
+    steps: [{ args: %w[help tree],
+              expect: [{ file: :stdout, include: %w[add template tree auth] }] }]
+  },
+  {
+    name: 'tree-shorthand',
+    steps: [{ args: ['tree'],
+              expect: [{ file: :stdout, include: %w[add template tree auth] }] }]
   }
 ].freeze
 

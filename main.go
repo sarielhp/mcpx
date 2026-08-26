@@ -62,6 +62,8 @@ func applyShorthands(args []string) []string {
 		return []string{"list"}
 	case "remove":
 		return append([]string{"rm"}, args[1:]...)
+	case "tree":
+		return []string{"help", "tree"}
 	case "help", "--help", "-h", "--version", "-v", "version":
 		return args
 	default:
@@ -242,6 +244,37 @@ func buildApp() *clihelp.App {
 					},
 				},
 			},
+			{
+				Name:        "help",
+				Description: "Help about any command or topic",
+				UsageLine:   "mcpx help [command|tree]",
+				Subcommands: []clihelp.Command{
+					{
+						Name:        "tree",
+						Description: "Show command tree of all commands",
+						UsageLine:   "mcpx help tree",
+						Args:        clihelp.NoArgs,
+						Run: func(ctx *clihelp.Context) error {
+							ctx.App.RenderTree(clihelp.Options{Writer: ctx.Stdout, Theme: ctx.App.Theme})
+							return nil
+						},
+					},
+				},
+				Run: func(ctx *clihelp.Context) error {
+					if len(ctx.Args) > 0 {
+						if ctx.Args[0] == "tree" {
+							ctx.App.RenderTree(clihelp.Options{Writer: ctx.Stdout, Theme: ctx.App.Theme})
+							return nil
+						}
+						if !ctx.App.RenderCommand(clihelp.Options{Writer: ctx.Stdout, Theme: ctx.App.Theme}, ctx.Args...) {
+							return fmt.Errorf("unknown help topic %q", ctx.Args[0])
+						}
+						return nil
+					}
+					ctx.App.RenderGlobal(clihelp.Options{Writer: ctx.Stdout, Theme: ctx.App.Theme})
+					return nil
+				},
+			},
 		},
 	}
 	return app
@@ -249,7 +282,7 @@ func buildApp() *clihelp.App {
 
 func isKnownCommand(s string) bool {
 	switch s {
-	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init":
+	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init", "help", "tree":
 		return true
 	default:
 		return false

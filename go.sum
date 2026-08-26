@@ -10,8 +10,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.28 h1:rPyg2ybwEKPebvpzVWe1gKBkH8EQFkxO4Y0hjBeLaBU=
 github.com/mattn/go-runewidth v0.0.28/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=
-github.com/sarielhp/clihelp v0.2.19 h1:vyMW2m+ExZZRhd8rc4843vzpRXRi27Gd0oqsaKoQjyE=
-github.com/sarielhp/clihelp v0.2.19/go.mod h1:z9v8VJhD55UuQrHCsjN1DcBWlZtOGF9lLpeJ3Ph8DeI=
+github.com/sarielhp/clihelp v0.2.20 h1:VkwN0L5fOO++diWBy1qEsmYqn0+XrKOjt+09J9rU1L8=
+github.com/sarielhp/clihelp v0.2.20/go.mod h1:z9v8VJhD55UuQrHCsjN1DcBWlZtOGF9lLpeJ3Ph8DeI=
 github.com/spf13/pflag v1.0.10 h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=
 github.com/spf13/pflag v1.0.10/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

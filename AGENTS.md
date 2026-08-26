@@ -12,7 +12,7 @@ frontends (OpenCode, Antigravity, Cursor/Claude/VS Code), and a recommendation
 engine.
 
 Key facts:
-- CLI framework: `github.com/sarielhp/clihelp` v0.2.19 (pflag-based).
+- CLI framework: `github.com/sarielhp/clihelp` v0.2.20 (pflag-based).
 - The embedded template registry lives in `embed.go` at the repo root because
   `go:embed` cannot reference parent directories (`..`); templates are
   `go:embed`'d from `templates/`.
@@ -72,7 +72,7 @@ signatures from Go source trees (stdlib or module cache).
 
 ```bash
 tools/goapi --path /usr/lib/go-1.26/src/io --name Write
-tools/goapi --path ~/.go/pkg/mod/github.com/sarielhp/clihelp@v0.2.19 --methods
+tools/goapi --path ~/.go/pkg/mod/github.com/sarielhp/clihelp@v0.2.20 --methods
 tools/goapi --stdlib --name Exists --funcs
 ```
 
@@ -85,7 +85,7 @@ GOMODCACHE (`go env GOMODCACHE`, NOT stray mirrors like `~/.sandbox`).
 ```bash
 tools/gomodcache clihelp                    # list cached versions
 tools/gomodcache clihelp --latest           # newest cached version
-tools/gomodcache clihelp --api v0.2.19 --name Execute --methods
+tools/gomodcache clihelp --api v0.2.20 --name Execute --methods
 tools/gomodcache --root                     # print GOMODCACHE path
 ```
 
