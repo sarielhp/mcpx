@@ -62,8 +62,6 @@ func applyShorthands(args []string) []string {
 		return []string{"list"}
 	case "remove":
 		return append([]string{"rm"}, args[1:]...)
-	case "tree":
-		return []string{"help", "tree"}
 	case "help", "--help", "-h", "--version", "-v", "version":
 		return args
 	default:
@@ -282,7 +280,7 @@ func buildApp() *clihelp.App {
 
 func isKnownCommand(s string) bool {
 	switch s {
-	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init", "help", "tree":
+	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init", "help":
 		return true
 	default:
 		return false

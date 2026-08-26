@@ -145,11 +145,6 @@ TESTS = [
     name: 'help-tree',
     steps: [{ args: %w[help tree],
               expect: [{ file: :stdout, include: %w[add template tree auth] }] }]
-  },
-  {
-    name: 'tree-shorthand',
-    steps: [{ args: ['tree'],
-              expect: [{ file: :stdout, include: %w[add template tree auth] }] }]
   }
 ].freeze
 
