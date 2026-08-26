@@ -47,6 +47,7 @@ func main() {
 }
 
 // applyShorthands rewrites backward-compatible shorthand invocations into
+// applyShorthands rewrites backward-compatible shorthand invocations into
 // their canonical command forms before dispatch.
 func applyShorthands(args []string) []string {
 	if len(args) == 0 {
@@ -54,14 +55,20 @@ func applyShorthands(args []string) []string {
 	}
 	first := args[0]
 	switch first {
-	case "ls":
-		return []string{"template", "list"}
-	case "show":
-		return append([]string{"template", "show"}, args[1:]...)
 	case "status":
 		return []string{"list"}
-	case "remove":
-		return append([]string{"rm"}, args[1:]...)
+	case "template":
+		if len(args) > 1 {
+			switch args[1] {
+			case "list":
+				return []string{"search"}
+			case "show":
+				return append([]string{"info"}, args[2:]...)
+			case "update":
+				return []string{"registry", "update"}
+			}
+		}
+		return []string{"search"}
 	case "help", "--help", "-h", "--version", "-v", "version":
 		return args
 	default:
@@ -85,7 +92,6 @@ func buildApp() *clihelp.App {
 	var withRecommended bool
 	var verbose bool
 	var timeout int
-	var preset string
 
 	app := &clihelp.App{
 		Name:        "mcpx",
@@ -94,7 +100,7 @@ func buildApp() *clihelp.App {
 		Commands: []clihelp.Command{
 			{
 				Name:        "add",
-				Description: "Add servers/presets to workspace",
+				Description: "Add servers or presets to workspace (auto-initializes if new)",
 				UsageLine:   "mcpx add <items...> [options]",
 				Args:        clihelp.MinimumNArgs(1),
 				Options: []clihelp.Option{
@@ -114,15 +120,17 @@ func buildApp() *clihelp.App {
 				},
 			},
 			{
-				Name:        "rm",
+				Name:        "remove",
+				Aliases:     []string{"rm"},
 				Description: "Remove servers from workspace",
-				UsageLine:   "mcpx rm <names...> [options]",
+				UsageLine:   "mcpx remove <names...> [options]",
 				Args:        clihelp.MinimumNArgs(1),
 				Options:     []clihelp.Option{clihelp.String(&dir, "--dir DIR", ".", "Target directory")},
 				Run:         func(ctx *clihelp.Context) error { return cmdRm(ctx.Args, dir) },
 			},
 			{
 				Name:        "list",
+				Aliases:     []string{"ls"},
 				Description: "List active servers in workspace",
 				UsageLine:   "mcpx list [options]",
 				Args:        clihelp.NoArgs,
@@ -130,24 +138,18 @@ func buildApp() *clihelp.App {
 				Run:         func(ctx *clihelp.Context) error { return cmdList(dir) },
 			},
 			{
-				Name:        "init",
-				Description: "Initialize a new workspace with a preset",
-				UsageLine:   "mcpx init [--preset NAME] [--dir DIR] [options]",
-				Args:        clihelp.NoArgs,
-				Options: []clihelp.Option{
-					clihelp.String(&preset, "--preset PRESET", "golang-dev", "Preset to initialize with"),
-					clihelp.String(&dir, "--dir DIR", ".", "Target directory"),
-					clihelp.Bool(&overwrite, "--overwrite", false, "Overwrite existing configs"),
-					clihelp.Bool(&all, "--all", false, "Write all supported config formats"),
-				},
-				Run: func(ctx *clihelp.Context) error {
-					return cmdInit(preset, dir, overwrite, all)
-				},
+				Name:        "sync",
+				Aliases:     []string{"update"},
+				Description: "Sync workspace configs with latest credentials",
+				UsageLine:   "mcpx sync [names...] [options]",
+				Options:     []clihelp.Option{clihelp.String(&dir, "--dir DIR", ".", "Target directory")},
+				Run:         func(ctx *clihelp.Context) error { return cmdSync(ctx.Args, dir) },
 			},
 			{
-				Name:        "validate",
+				Name:        "check",
+				Aliases:     []string{"test", "validate"},
 				Description: "Validate server handshakes (parallel)",
-				UsageLine:   "mcpx validate [names...] [options]",
+				UsageLine:   "mcpx check [names...] [options]",
 				Args:        clihelp.MaximumNArgs(23),
 				Options: []clihelp.Option{
 					clihelp.String(&dir, "--dir DIR", ".", "Target directory"),
@@ -159,11 +161,39 @@ func buildApp() *clihelp.App {
 				},
 			},
 			{
-				Name:        "update",
-				Description: "Update configs with latest credentials",
-				UsageLine:   "mcpx update [names...] [options]",
-				Options:     []clihelp.Option{clihelp.String(&dir, "--dir DIR", ".", "Target directory")},
-				Run:         func(ctx *clihelp.Context) error { return cmdUpdate(ctx.Args, dir) },
+				Name:        "search",
+				Description: "List or search available servers and presets",
+				UsageLine:   "mcpx search [query]",
+				Args:        clihelp.MaximumNArgs(1),
+				Run: func(ctx *clihelp.Context) error {
+					q := ""
+					if len(ctx.Args) > 0 {
+						q = ctx.Args[0]
+					}
+					return cmdSearch(q)
+				},
+			},
+			{
+				Name:        "info",
+				Aliases:     []string{"show"},
+				Description: "Show server or preset definition and prerequisites",
+				UsageLine:   "mcpx info <name>",
+				Args:        clihelp.ExactArgs(1),
+				Run:         func(ctx *clihelp.Context) error { return cmdInfo(ctx.Args[0]) },
+			},
+			{
+				Name:        "registry",
+				Description: "Manage remote template registry",
+				UsageLine:   "mcpx registry <subcommand>",
+				Subcommands: []clihelp.Command{
+					{
+						Name:        "update",
+						Description: "Refresh local template cache from the remote repo",
+						UsageLine:   "mcpx registry update",
+						Args:        clihelp.NoArgs,
+						Run:         func(ctx *clihelp.Context) error { return cmdTemplateUpdate() },
+					},
+				},
 			},
 			{
 				Name:        "auth",
@@ -214,34 +244,6 @@ func buildApp() *clihelp.App {
 				},
 			},
 			{
-				Name:        "template",
-				Description: "List and show templates",
-				UsageLine:   "mcpx template <subcommand>",
-				Subcommands: []clihelp.Command{
-					{
-						Name:        "list",
-						Description: "List available templates",
-						UsageLine:   "mcpx template list",
-						Args:        clihelp.NoArgs,
-						Run:         func(ctx *clihelp.Context) error { return cmdTemplateList() },
-					},
-					{
-						Name:        "show",
-						Description: "Show template definition",
-						UsageLine:   "mcpx template show <name>",
-						Args:        clihelp.ExactArgs(1),
-						Run:         func(ctx *clihelp.Context) error { return cmdShow(ctx.Args[0]) },
-					},
-					{
-						Name:        "update",
-						Description: "Refresh local template cache from the remote repo",
-						UsageLine:   "mcpx template update",
-						Args:        clihelp.NoArgs,
-						Run:         func(ctx *clihelp.Context) error { return cmdTemplateUpdate() },
-					},
-				},
-			},
-			{
 				Name:        "help",
 				Description: "Help about any command or topic",
 				UsageLine:   "mcpx help [command|tree]",
@@ -279,7 +281,7 @@ func buildApp() *clihelp.App {
 
 func isKnownCommand(s string) bool {
 	switch s {
-	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init", "help":
+	case "add", "remove", "rm", "list", "ls", "sync", "update", "check", "test", "validate", "search", "info", "show", "registry", "template", "auth", "help":
 		return true
 	default:
 		return false
@@ -321,10 +323,16 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 		return nil
 	}
 
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
 	if err := writeTargets(servers, dir, overwrite, all, opencode, antigravity, cursor, claude, vscode); err != nil {
 		return fmt.Errorf("failed to write targets: %w", err)
 	}
 	fmt.Printf("Added %d server(s) to %s\n", len(servers), dir)
+
+	ensureGitignore(dir)
 
 	for _, s := range servers {
 		for _, rec := range s.Recommends {
@@ -340,9 +348,27 @@ func cmdAdd(items []string, dir string, dryRun, overwrite, opencode, antigravity
 	return nil
 }
 
+func ensureGitignore(dir string) {
+	if _, err := os.Stat(path.Join(dir, ".git")); err == nil {
+		gitignorePath := path.Join(dir, ".gitignore")
+		if data, err := os.ReadFile(gitignorePath); err == nil {
+			if !strings.Contains(string(data), ".env") {
+				f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+				if err == nil {
+					defer f.Close()
+					f.WriteString("\n.env\n")
+				}
+			}
+		} else if os.IsNotExist(err) {
+			_ = os.WriteFile(gitignorePath, []byte(".env\n"), 0644)
+		}
+	}
+}
+
 func writeTargets(servers []*types.Server, dir string, overwrite, all, opencode, antigravity, cursor, claude, vscode bool) error {
 	vault := envvault.NewVault(dir)
-	if all || opencode {
+	defaultTarget := !all && !opencode && !antigravity && !cursor && !claude && !vscode
+	if all || opencode || defaultTarget {
 		if err := config.NewOpenCodeWriter(dir, overwrite).Write(servers, vault); err != nil {
 			return err
 		}
@@ -402,6 +428,10 @@ func cmdList(dir string) error {
 	return nil
 }
 
+func cmdInfo(name string) error {
+	return cmdShow(name)
+}
+
 func cmdShow(name string) error {
 	if server, err := registry.GetServer(name); err == nil {
 		fmt.Printf("%s — %s\n", server.Name, server.Description)
@@ -453,12 +483,18 @@ func cmdTest(names []string, timeoutSec int, verbose bool) error {
 	return nil
 }
 
+func cmdSync(names []string, dir string) error {
+	return cmdUpdate(names, dir)
+}
+
 func cmdUpdate(names []string, dir string) error {
 	servers, _ := ResolveItems(names)
 	if len(servers) == 0 {
 		servers = allServers()
 	}
-	writeTargets(servers, dir, false, true, false, false, false, false, false)
+	if err := writeTargets(servers, dir, false, true, false, false, false, false, false); err != nil {
+		return err
+	}
 	fmt.Printf("Updated %d server(s) in %s\n", len(servers), dir)
 	return nil
 }
@@ -512,61 +548,72 @@ func cmdAuthRm(name string) error {
 	return nil
 }
 
-func cmdTemplateList() error {
-	// Display servers with their descriptions
-	fmt.Println("Servers:")
+func cmdSearch(query string) error {
+	query = strings.ToLower(strings.TrimSpace(query))
+
 	servers := registry.ListServers()
+	var matchedServers []*types.Server
 	for _, name := range servers {
 		server, err := registry.GetServer(name)
 		if err != nil {
 			continue
 		}
-
-		// Print server name with color (using ANSI for now)
-		fmt.Printf("  \033[36m%s\033[0m - %s\n", server.Name, server.Description)
-
-		// Show what the server does (command and args)
-		cmdLine := server.Command
-		if len(server.Args) > 0 {
-			cmdLine += " " + strings.Join(server.Args, " ")
+		if query == "" || strings.Contains(strings.ToLower(server.Name), query) || strings.Contains(strings.ToLower(server.Description), query) {
+			matchedServers = append(matchedServers, server)
 		}
-		fmt.Printf("    Command: %s\n", cmdLine)
-
-		// Show prerequisites if any
-		if len(server.Prerequisites) > 0 {
-			fmt.Print("    Prerequisites: ")
-			prereqs := make([]string, len(server.Prerequisites))
-			for i, prereq := range server.Prerequisites {
-				prereqs[i] = prereq.Binary
-			}
-			fmt.Printf("%s\n", strings.Join(prereqs, ", "))
-		}
-
-		// Show recommended servers if any
-		if len(server.Recommends) > 0 {
-			fmt.Printf("    Recommends: %s\n", strings.Join(server.Recommends, ", "))
-		}
-		fmt.Println()
 	}
 
-	// Display presets with their descriptions
-	fmt.Println("Presets:")
 	presets := registry.ListPresets()
+	var matchedPresets []*types.Preset
 	for _, name := range presets {
 		preset, err := registry.GetPreset(name)
 		if err != nil {
 			continue
 		}
-
-		// Print preset name with color
-		fmt.Printf("  \033[33m%s\033[0m - %s\n", preset.Name, preset.Description)
-
-		// Show what servers this preset includes
-		if len(preset.Servers) > 0 {
-			fmt.Printf("    Includes: %s\n", strings.Join(preset.Servers, ", "))
+		if query == "" || strings.Contains(strings.ToLower(preset.Name), query) || strings.Contains(strings.ToLower(preset.Description), query) {
+			matchedPresets = append(matchedPresets, preset)
 		}
-		fmt.Println()
 	}
+
+	if len(matchedServers) == 0 && len(matchedPresets) == 0 {
+		fmt.Printf("No servers or presets matching %q\n", query)
+		return nil
+	}
+
+	if len(matchedServers) > 0 {
+		fmt.Println("Servers:")
+		for _, server := range matchedServers {
+			fmt.Printf("  \033[36m%s\033[0m - %s\n", server.Name, server.Description)
+			cmdLine := server.Command
+			if len(server.Args) > 0 {
+				cmdLine += " " + strings.Join(server.Args, " ")
+			}
+			fmt.Printf("    Command: %s\n", cmdLine)
+			if len(server.Prerequisites) > 0 {
+				prereqs := make([]string, len(server.Prerequisites))
+				for i, prereq := range server.Prerequisites {
+					prereqs[i] = prereq.Binary
+				}
+				fmt.Printf("    Prerequisites: %s\n", strings.Join(prereqs, ", "))
+			}
+			if len(server.Recommends) > 0 {
+				fmt.Printf("    Recommends: %s\n", strings.Join(server.Recommends, ", "))
+			}
+			fmt.Println()
+		}
+	}
+
+	if len(matchedPresets) > 0 {
+		fmt.Println("Presets:")
+		for _, preset := range matchedPresets {
+			fmt.Printf("  \033[33m%s\033[0m - %s\n", preset.Name, preset.Description)
+			if len(preset.Servers) > 0 {
+				fmt.Printf("    Includes: %s\n", strings.Join(preset.Servers, ", "))
+			}
+			fmt.Println()
+		}
+	}
+
 	return nil
 }
 
@@ -576,53 +623,6 @@ func cmdTemplateUpdate() error {
 		return err
 	}
 	fmt.Printf("Updated %d template(s) in %s\n", n, cacheDir())
-	return nil
-}
-
-func cmdInit(presetName, dir string, overwrite, all bool) error {
-	// Check if preset exists
-	preset, err := registry.GetPreset(presetName)
-	if err != nil {
-		return fmt.Errorf("preset %q not found: %v", presetName, err)
-	}
-
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %v", dir, err)
-	}
-
-	// Resolve preset servers
-	servers := make([]*types.Server, 0)
-	for _, serverName := range preset.Servers {
-		server, err := registry.GetServer(serverName)
-		if err != nil {
-			return fmt.Errorf("server %q in preset %q not found: %v", serverName, presetName, err)
-		}
-		servers = append(servers, server)
-	}
-
-	// Write config files
-	if err := writeTargets(servers, dir, overwrite, all, true, true, false, false, false); err != nil {
-		return fmt.Errorf("failed to write targets: %w", err)
-	}
-
-	fmt.Printf("✓ Created workspace at %s\n", dir)
-	fmt.Printf("✓ Added %d server(s) from preset %s\n", len(servers), presetName)
-
-	// Check if it's a git repo and add .gitignore
-	if _, err := os.Stat(path.Join(dir, ".git")); err == nil {
-		// It's a git repo, add .gitignore
-		gitignorePath := path.Join(dir, ".gitignore")
-		gitignoreContent := ".env\n"
-		if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
-			if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to create .gitignore: %v\n", err)
-			} else {
-				fmt.Printf("✓ Added .gitignore\n")
-			}
-		}
-	}
-
 	return nil
 }
 

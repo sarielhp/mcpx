@@ -28,28 +28,28 @@ require 'open3'
 #         :not_contains{} (key must NOT exist)
 TESTS = [
   {
-    name: 'template-list-shows-servers-and-presets',
-    steps: [{ args: %w[template list],
+    name: 'search-shows-servers-and-presets',
+    steps: [{ args: %w[search],
               expect: [{ file: :stdout, include: ['Servers:', 'Presets:', 'gopls', 'golang-dev'] }] }]
   },
   {
-    name: 'ls-shorthand-aliases-template-list',
-    steps: [{ args: ['ls'],
-              expect: [{ file: :stdout, include: ['Servers:'] }] }]
+    name: 'search-filter-query',
+    steps: [{ args: %w[search go],
+              expect: [{ file: :stdout, include: %w[gopls golang-dev] }] }]
   },
   {
-    name: 'show-server',
-    steps: [{ args: %w[show gopls],
+    name: 'info-server',
+    steps: [{ args: %w[info gopls],
               expect: [{ file: :stdout, include: ['gopls', 'language server'] }] }]
   },
   {
-    name: 'show-preset',
-    steps: [{ args: %w[show golang-dev],
+    name: 'info-preset',
+    steps: [{ args: %w[info golang-dev],
               expect: [{ file: :stdout, include: ['Preset', 'gopls, context7'] }] }]
   },
   {
-    name: 'show-unknown-fails',
-    steps: [{ args: ['show', 'definitely-not-a-server'], exit: 1,
+    name: 'info-unknown-fails',
+    steps: [{ args: ['info', 'definitely-not-a-server'], exit: 1,
               expect: [{ file: :stderr, include: ['unknown template'] }] }]
   },
   {
@@ -118,7 +118,7 @@ TESTS = [
   {
     name: 'global-help',
     steps: [{ args: ['--help'],
-              expect: [{ file: :stdout, include: ['Usage of mcpx', 'add', 'template'] }] }]
+              expect: [{ file: :stdout, include: ['Usage of mcpx', 'add', 'search', 'info', 'auth'] }] }]
   },
   {
     name: 'repos-lists-two-repos',
@@ -144,7 +144,7 @@ TESTS = [
   {
     name: 'help-tree',
     steps: [{ args: %w[help tree],
-              expect: [{ file: :stdout, include: %w[add template tree auth] }] }]
+              expect: [{ file: :stdout, include: %w[add search info registry auth] }] }]
   }
 ].freeze
 

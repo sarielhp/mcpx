@@ -5,23 +5,30 @@ MCPX is a zero-dependency static binary for managing Model Context Protocol (MCP
 ## Quick Start
 
 ```bash
-# Initialize a new workspace with a preset
-mcpx init --preset golang-dev
+# Add a preset to initialize a new workspace
+mcpx add golang-dev
 
-# Add a server
+# Add an individual server
 mcpx add context7
 
 # Validate server connections
-mcpx validate
+mcpx check
 
 # List configured servers
 mcpx list
+
+# Search available servers and presets
+mcpx search
+
+# Inspect server definition & prerequisites
+mcpx info gopls
 ```
 
 ## Features
 
 - **Multi-client support**: Write configs for OpenCode, Antigravity, Cursor, Claude, VS Code
 - **Preset composition**: Use curated workflow presets (e.g., `golang-dev`, `web-dev`)
+- **Zero-ceremony setup**: `mcpx add` auto-initializes workspaces and `.gitignore`
 - **Recommendation engine**: Auto-install companion servers
 - **Parallel health checking**: Test all servers concurrently
 - **Environment variable management**: Secure credential handling
@@ -57,19 +64,8 @@ go install github.com/sarielhp/mcpx@latest
 
 ## Commands
 
-### `mcpx init`
-Initialize a new workspace with a preset. Usage:
-```bash
-mcpx init [--preset NAME] [--dir DIR] [options]
-```
-Options:
-- `--preset PRESET` - Preset to initialize with (default: "golang-dev")
-- `--dir DIR` - Target directory (default: ".")
-- `--overwrite` - Overwrite existing config files
-- `--all` - Write all supported config formats
-
 ### `mcpx add`
-Add servers/presets to workspace. Usage:
+Add servers or presets to workspace (auto-initializes workspace if fresh). Usage:
 ```bash
 mcpx add <items...> [options]
 ```
@@ -85,15 +81,15 @@ Options:
 - `--all` - Write all supported config formats
 - `--with-recommended` - Auto-install recommended companions
 
-### `mcpx rm`
+### `mcpx remove` (alias: `rm`)
 Remove servers from workspace. Usage:
 ```bash
-mcpx rm <names...> [options]
+mcpx remove <names...> [options]
 ```
 Options:
 - `--dir DIR` - Target directory (default: ".")
 
-### `mcpx list`
+### `mcpx list` (alias: `ls`)
 List active servers in workspace. Usage:
 ```bash
 mcpx list [options]
@@ -101,29 +97,43 @@ mcpx list [options]
 Options:
 - `--dir DIR` - Target directory (default: ".")
 
-### `mcpx show`
-Show template definition. Usage:
+### `mcpx sync` (alias: `update`)
+Sync workspace configs with latest credentials. Usage:
 ```bash
-mcpx show <name>
+mcpx sync [names...] [options]
 ```
+Options:
+- `--dir DIR` - Target directory (default: ".")
 
-### `mcpx validate`
+### `mcpx check` (aliases: `test`, `validate`)
 Validate server handshakes (parallel). Usage:
 ```bash
-mcpx validate [names...] [options]
+mcpx check [names...] [options]
 ```
 Options:
 - `--dir DIR` - Target directory (default: ".")
 - `--timeout SEC` - Per-server timeout in seconds (default: 6)
 - `--verbose` - Show detailed output
 
-### `mcpx update`
-Update configs with latest credentials. Usage:
+### `mcpx search`
+List or search available servers and presets. Usage:
 ```bash
-mcpx update [names...] [options]
+mcpx search [query]
 ```
-Options:
-- `--dir DIR` - Target directory (default: ".")
+
+### `mcpx info` (alias: `show`)
+Show server or preset definition, commands, and prerequisites. Usage:
+```bash
+mcpx info <name>
+```
+
+### `mcpx registry`
+Manage remote template registry. Usage:
+```bash
+mcpx registry <subcommand>
+```
+Subcommands:
+- `mcpx registry update` - Refresh local template cache from the remote repo
 
 ### `mcpx auth`
 Manage environment variables. Usage:
@@ -139,15 +149,12 @@ Subcommands:
 Options:
 - `--dir DIR` - Target directory (default: ".")
 
-### `mcpx template`
-Manage templates. Usage:
+### `mcpx help`
+Get help about any command or display the full command tree. Usage:
 ```bash
-mcpx template <subcommand>
+mcpx help [command]
+mcpx help tree
 ```
-Subcommands:
-- `mcpx template list` - List available templates with descriptions and usage
-- `mcpx template show <name>` - Show template definition
-- `mcpx template update` - Refresh local template cache from the remote repo
 
 ## License
 

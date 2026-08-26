@@ -135,7 +135,7 @@ end
 def all_server_names(bin, dir)
   outdir = File.join(dir, 'names')
   FileUtils.mkdir_p(outdir)
-  out, _e, st = Open3.capture3(bin, 'template', 'list', chdir: outdir)
+  out, _e, st = Open3.capture3(bin, 'search', chdir: outdir)
   return [] unless st.success?
 
   section = false
