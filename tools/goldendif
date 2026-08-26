@@ -141,13 +141,18 @@ def all_server_names(bin, dir)
   section = false
   names = []
   out.lines.each do |line|
-    if line =~ /^Servers:$/
+    clean_line = line.gsub(/\e\[[0-9;]*m/, '')
+    if clean_line =~ /^Servers:$/
       section = true
       next
-    elsif line =~ /^Presets:$/
+    elsif clean_line =~ /^Presets:$/
       break
     end
-    names << line.strip if section && line =~ /^\s*(\S+)$/
+    if section && clean_line =~ /^\s+([a-zA-Z0-9_-]+)\s+-/
+      names << $1
+    elsif section && clean_line =~ /^\s*(\S+)$/
+      names << $1
+    end
   end
   names
 end

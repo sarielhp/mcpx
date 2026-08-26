@@ -1,0 +1,1 @@
+{"mcpServers":{"audio":{"args":["-y","mcp-audio"],"command":"npx","env":{"AUDIO_API_KEY":""}}}}

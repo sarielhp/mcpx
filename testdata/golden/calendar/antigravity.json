@@ -1,0 +1,1 @@
+{"mcpServers":{"audio":{"args":["-y","mcp-audio"],"command":"npx","env":{"AUDIO_API_KEY":""}},"calendar":{"args":["-y","mcp-calendar"],"command":"npx","env":{"CALENDAR_API_KEY":""}}}}

@@ -56,6 +56,8 @@ func applyShorthands(args []string) []string {
 	switch first {
 	case "ls":
 		return []string{"template", "list"}
+	case "show":
+		return append([]string{"template", "show"}, args[1:]...)
 	case "status":
 		return []string{"list"}
 	case "remove":
