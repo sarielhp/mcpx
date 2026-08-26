@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+
+# Install script for mcpx
+# This script compiles the program and copies the binary to ~/bin/
+
+require 'fileutils'
+
+def run_command(cmd)
+  puts "Running: #{cmd}"
+  system(cmd) or raise "Command failed: #{cmd}"
+end
+
+begin
+  # Build the binary
+  run_command("go build -o mcpx .")
+  
+  # Ensure ~/bin exists
+  bin_dir = File.expand_path("~/bin")
+  FileUtils.mkdir_p(bin_dir)
+  
+  # Copy the binary to ~/bin/
+  FileUtils.cp("mcpx", File.join(bin_dir, "mcpx"))
+  
+  puts "Installation complete!"
+  puts "The mcpx binary has been installed to #{File.join(bin_dir, "mcpx")}"
+  puts "Make sure ~/bin is in your PATH to use the command globally."
+rescue => e
+  puts "Installation failed: #{e.message}"
+  exit 1
+end

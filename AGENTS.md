@@ -106,7 +106,7 @@ tools/modcheck --fix      # run `go mod tidy`
 ### Correctness & validation
 
 **`tools/mcpxsmoke`** — Regression smoke test suite. Builds mcpx and runs
-isolated scenarios in scratch dirs against `add`/`rm`/`list`/`show`/`test`/
+isolated scenarios in scratch dirs against `add`/`rm`/`list`/`show`/`validate`/
 `auth`/`template` and the shorthand rewrites (`ls`, `status`, `remove`, bare
 items → `add`). Asserts on exit codes, stdout/stderr substrings, and JSON
 config contents (with `sub:` to navigate nested keys like `mcp`/`mcpServers`).

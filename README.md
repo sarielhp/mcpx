@@ -1,6 +1,6 @@
 # MCPX - Manage MCP Servers and Presets
 
-MCPX is a zero-dependency static binary for managing Model Context Protocol (MCP) servers and presets. It provides a unified CLI to add, remove, list, and test MCP servers across multiple development environments.
+MCPX is a zero-dependency static binary for managing Model Context Protocol (MCP) servers and presets. It provides a unified CLI to add, remove, list, and validate MCP servers across multiple development environments.
 
 ## Quick Start
 
@@ -11,8 +11,8 @@ mcpx init --preset golang-dev
 # Add a server
 mcpx add context7
 
-# Test server connections
-mcpx test
+# Validate server connections
+mcpx validate
 
 # List configured servers
 mcpx list
@@ -107,10 +107,10 @@ Show template definition. Usage:
 mcpx show <name>
 ```
 
-### `mcpx test`
-Test server handshakes (parallel). Usage:
+### `mcpx validate`
+Validate server handshakes (parallel). Usage:
 ```bash
-mcpx test [names...] [options]
+mcpx validate [names...] [options]
 ```
 Options:
 - `--dir DIR` - Target directory (default: ".")
@@ -145,7 +145,7 @@ Manage templates. Usage:
 mcpx template <subcommand>
 ```
 Subcommands:
-- `mcpx template list` - List available templates
+- `mcpx template list` - List available templates with descriptions and usage
 - `mcpx template show <name>` - Show template definition
 - `mcpx template update` - Refresh local template cache from the remote repo
 

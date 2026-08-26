@@ -33,7 +33,7 @@ func main() {
 	rawArgs := os.Args[1:]
 	if len(rawArgs) == 1 && (rawArgs[0] == "--repos" || rawArgs[0] == "--repositories") {
 		if err := cmdRepos(); err != nil {
-			clihelp.PrintError(err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 		return
@@ -41,7 +41,7 @@ func main() {
 
 	args := applyShorthands(rawArgs)
 	if err := app.Execute(args); err != nil {
-		clihelp.PrintError(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -89,7 +89,7 @@ func buildApp() *clihelp.App {
 		Name:        "mcpx",
 		Description: "MCPX - Manage MCP servers and presets",
 		Version:     "0.2.2",
-		GlobalNote:  "Run 'mcpx <command> --help' for command-specific options.",
+		GlobalNote:  "Version: 0.2.2",
 		Commands: []clihelp.Command{
 			{
 				Name:        "add",
@@ -144,9 +144,9 @@ func buildApp() *clihelp.App {
 				},
 			},
 			{
-				Name:        "test",
-				Description: "Test server handshakes (parallel)",
-				UsageLine:   "mcpx test [names...] [options]",
+				Name:        "validate",
+				Description: "Validate server handshakes (parallel)",
+				UsageLine:   "mcpx validate [names...] [options]",
 				Args:        clihelp.MaximumNArgs(23),
 				Options: []clihelp.Option{
 					clihelp.String(&dir, "--dir DIR", ".", "Target directory"),
@@ -166,8 +166,20 @@ func buildApp() *clihelp.App {
 			},
 			{
 				Name:        "auth",
-				Description: "Manage environment variables",
+				Description: "Manage environment variables for MCP servers",
 				UsageLine:   "mcpx auth <subcommand>",
+				Notes: []clihelp.Note{
+					{
+						Heading: "Environment Variable Hierarchy",
+						Text:    "Variables are resolved from three tiers, with later tiers taking precedence:\n1. System environment variables\n2. `~/.config/mcpx/.env` (global config)\n3. `{targetDir}/.env` (workspace-specific)",
+					},
+				},
+				Examples: []clihelp.Example{
+					{Line: "mcpx auth set GITHUB_TOKEN ghp_abc123", Description: "Store a GitHub token in the global config"},
+					{Line: "mcpx auth get GITHUB_TOKEN", Description: "Display the masked value of GITHUB_TOKEN"},
+					{Line: "mcpx auth list", Description: "List all stored environment variables"},
+					{Line: "mcpx auth rm GITHUB_TOKEN", Description: "Remove GITHUB_TOKEN from the vault"},
+				},
 				Subcommands: []clihelp.Command{
 					{
 						Name:        "set",
@@ -235,7 +247,7 @@ func buildApp() *clihelp.App {
 
 func isKnownCommand(s string) bool {
 	switch s {
-	case "add", "rm", "list", "show", "test", "update", "auth", "template", "init":
+	case "add", "rm", "list", "show", "validate", "update", "auth", "template", "init":
 		return true
 	default:
 		return false
@@ -469,13 +481,59 @@ func cmdAuthRm(name string) error {
 }
 
 func cmdTemplateList() error {
+	// Display servers with their descriptions
 	fmt.Println("Servers:")
-	for _, name := range registry.ListServers() {
-		fmt.Printf("  %s\n", name)
+	servers := registry.ListServers()
+	for _, name := range servers {
+		server, err := registry.GetServer(name)
+		if err != nil {
+			continue
+		}
+
+		// Print server name with color (using ANSI for now)
+		fmt.Printf("  \033[36m%s\033[0m - %s\n", server.Name, server.Description)
+
+		// Show what the server does (command and args)
+		cmdLine := server.Command
+		if len(server.Args) > 0 {
+			cmdLine += " " + strings.Join(server.Args, " ")
+		}
+		fmt.Printf("    Command: %s\n", cmdLine)
+
+		// Show prerequisites if any
+		if len(server.Prerequisites) > 0 {
+			fmt.Print("    Prerequisites: ")
+			prereqs := make([]string, len(server.Prerequisites))
+			for i, prereq := range server.Prerequisites {
+				prereqs[i] = prereq.Binary
+			}
+			fmt.Printf("%s\n", strings.Join(prereqs, ", "))
+		}
+
+		// Show recommended servers if any
+		if len(server.Recommends) > 0 {
+			fmt.Printf("    Recommends: %s\n", strings.Join(server.Recommends, ", "))
+		}
+		fmt.Println()
 	}
+
+	// Display presets with their descriptions
 	fmt.Println("Presets:")
-	for _, name := range registry.ListPresets() {
-		fmt.Printf("  %s\n", name)
+	presets := registry.ListPresets()
+	for _, name := range presets {
+		preset, err := registry.GetPreset(name)
+		if err != nil {
+			continue
+		}
+
+		// Print preset name with color
+		fmt.Printf("  \033[33m%s\033[0m - %s\n", preset.Name, preset.Description)
+
+		// Show what servers this preset includes
+		if len(preset.Servers) > 0 {
+			fmt.Printf("    Includes: %s\n", strings.Join(preset.Servers, ", "))
+		}
+		fmt.Println()
 	}
 	return nil
 }

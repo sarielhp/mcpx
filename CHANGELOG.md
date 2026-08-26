@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Core MCP server management functionality
 - Template registry with 23 server templates
 - Config writers for OpenCode, Antigravity, Cursor, Claude, VS Code
-- Parallel health checking with `mcpx test`
+- Parallel health checking with `mcpx validate`
 - Environment variable management with `mcpx auth`
 - Template management with `mcpx template`
 - Preset support with `mcpx add` and `mcpx list`
